@@ -97,6 +97,46 @@ type block struct {
   nonce int
 }
 
+// Notice that we need to produce a predictable merkleTree from a given list of transactions
+// This requires that we define a total ordering on transactions
+
+
+// returns -1 if left is smaller, 0 if equal, and 1 if left is greater
+
+
+// TODO - we need these lists to have same sort order, or just use maps
+func (t []txnOutput) equals(other []txnOutput) bool {
+  if len(t) != len(other) {
+    return false
+  }
+  for i, item := range t {
+    if item.amt != other[i].amt || item.dest != other[i].dest {
+      return false
+    }
+  }
+  return true
+}
+
+// TODO - basic unit tests
+func (t timestamp) equals(other timestamp) bool {
+  return false
+}
+
+func compare(t1 txn, t2 txn) int {
+  if t1.from < t2.from {
+    return -1
+  } else if t1.from == t2.from {
+    if t1.t < t2.t {
+      return -1
+    } else if t1.t == t2.t {
+      return 0
+    }
+    return 1
+  }
+  return
+
+}
+
 ```
 
 
