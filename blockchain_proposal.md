@@ -1,41 +1,52 @@
-Project Proposal
+Blockchain Project Proposal
 
 # Simplified Bitcoin Model
-We will implement a simplified version of bitcoin as follows.
+We will implement a simplified version of bitcoin, leaving aside the cryptographic signing of blocks and focusing on the gossiping of messages and construction of merkle trees and the actual blockchain.
 
 ## Nodes in the Network
-The population of our network consists of customer nodes and miner nodes.
+The population of our network will consist of customer nodes and full miner nodes only. 
+We will not implement "thin" miner nodes.
 - Customer nodes will periodically attempt to generate transactions.
-- Miner nodes will perform standard mining. 
-  These miner nodes will correspond to "full" nodes in a typical bitcoin setting, and we will not implement "thin" nodes.
+- Miner nodes will incorporate transactions into blocks, and attempt to mine blocks.
 
-The population will be initialized with each one customer being given 10 coins.
+The population will be initialized with one fixed customer being given 10 coins.
 
-After random intervals of time, each customer with a positive wallet amount will generate a transaction sending a small random number of coins to one or more customer nodes.
+On a random ticker, each customer with a positive wallet amount will generate a transaction sending a small random percentage of their wallet to one or more customer nodes.
 
 See below for the structure of transactions.
 
-Each node will begin with a `hostfile.txt` listing the available nodes, in the following format:
+Each node will begin with a `hostfile.json` listing the available customer and miner nodes in the following format:
 
-```hostfile.txt
-c1
-c2
-c3
-m1
-m2
-m3
+```JSON
+{
+  "customers": [
+    {"name": "c0", "id": 0}, 
+    {"name": "c1", "id": 1},
+    {"name": "c2", "id": 2}
+  ]
+  "miners": [
+    {"name": "m0", "id": 0}
+    {"name": "m1", "id": 1}
+    {"name": "m2", "id": 2}
+  ]
+}
 ```
 
-We use the simple notation that `c.` represents a customer, and `m.` represents a miner. 
-In this example, the network has 6 nodes, with node 0 being the first customer, and node 3 being the first miner.
+Nodes in the network can be resolved using DNS based on their `name` field, and addressed for transactions using their `id` field.
+We will distinguish between these two fields because a real implementation (or a possible extension of the project) must distinguish between the public key information of a host and their network location.
 
-Valid `wallet_id` values will be one of the node ids described in `hostfile.txt`, or the special value `666` to represent the bank.
-This value will be used for the `source_wallet_id` in generation of coins (to fill the initial contents of wallets, and for mining rewards), as well as for `dest_wallet_id` for destroying coins (if this is used as a test case).
+We will also allow the special coinbase address: `{"name": "coinbase", "id": 999}`, to provide an `id` that can be used for transactions that generate coins (providing the initial coins for the network, as well as mining rewards).
+
+## Miner Agreement
+In the real network, miners are responsible for either storing the ledger, or consulting a set of trusted sources to determine the ledger.
+Then, they can perform block mining starting from a valid point
 
 ## Honest customers
 To begin with, we assume honest customer nodes, who only attempt to spend their coins once, and who only attempt to make transactions from their own wallet to another wallet.
 
 This lets us begin by skipping all cryptographic signing and verification, focusing only on message, merkle tree construction, merkle tree verification.
+
+To allow honest behavior, each customer must know the value of their own wallet when they try to generate a transaction.
 
 As a possible test case, we can add some customers who attempt to double spend, and add some logic on another customer to validate the history of coins in the network.
 
@@ -47,7 +58,7 @@ This means any Nonce will succeed; to reduce thrashing in the network, we will c
 
 ## Messages
 
-We will use the following message types:
+We will use the following message types, listed along with the fields they contain:
 
 - NewTransaction
   - sourceID
@@ -59,7 +70,6 @@ We will use the following message types:
   - timestamp
   - nonce
   - merkleTree
-
 
 # Skeleton Types
 
