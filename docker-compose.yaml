@@ -1,0 +1,67 @@
+version: "3.5"
+
+services:
+  ds-agent-0: 
+    image: prj2
+    container_name: d0
+    restart: "no"
+    environment:
+      - CONTAINER_NAME=d0
+    build:
+      context: .
+    networks:
+      - ds-network
+    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+
+  ds-agent-1: 
+    image: prj2
+    container_name: d1
+    restart: "no"
+    environment:
+      - CONTAINER_NAME=d1
+    build:
+      context: .
+    networks:
+      - ds-network
+    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+
+  ds-agent-2: 
+    image: prj2
+    container_name: d2
+    restart: "no"
+    environment:
+      - CONTAINER_NAME=d2
+    build:
+      context: .
+    networks:
+      - ds-network
+    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+
+  ds-agent-3: 
+    image: prj2
+    container_name: d3
+    restart: "no"
+    environment:
+      - CONTAINER_NAME=d3
+    build:
+      context: .
+    networks:
+      - ds-network
+    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+
+  ds-agent-4: 
+    image: prj2
+    container_name: d4
+    restart: "no"
+    environment:
+      - CONTAINER_NAME=d4
+    build:
+      context: .
+    networks:
+      - ds-network
+    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+
+networks:
+  ds-network:
+    name: ds-network
+    driver: bridge
