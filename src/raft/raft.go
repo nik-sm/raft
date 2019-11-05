@@ -321,7 +321,6 @@ func (a *agent) shutdown() {
 }
 
 func init() {
-	defer flag.Parse()
 	flag.StringVar(&hostfile, "h", "hostfile.txt", "name of hostfile")
 	flag.IntVar(&testScenario, "t", 0, "test scenario to run")
 	flag.IntVar(&duration, "d", 30, "time until node shutdown")
@@ -336,6 +335,7 @@ func init() {
 }
 
 func Raft() {
+	flag.Parse()
 	peers := make(peerMap)
 	if !containsI([]int{1, 2, 3, 4, 5}, testScenario) {
 		log.Fatalf("invalid test scenario: %d", testScenario)
