@@ -29,7 +29,7 @@ func resolvePeers(peers peerMap, peerStringsMap peerStringMap) (bool, error) {
 	return len(peerStringsMap) == 0, nil
 }
 
-func readHostfile(hostfile string) (int, peerStringMap, error) {
+func readHostfile(hostfile string) (host, peerStringMap, error) {
 	containerName := os.Getenv("CONTAINER_NAME")
 	contents, err := ioutil.ReadFile(hostfile)
 	if err != nil {
@@ -42,13 +42,13 @@ func readHostfile(hostfile string) (int, peerStringMap, error) {
 			if name == containerName {
 				myID = i
 			}
-			peerStringsMap[i] = name
+			peerStringsMap[host(i)] = name
 		}
 	}
 	if myID == -1 {
-		return -1, peerStringsMap, errors.New("did not find our own container name in hostfile")
+		return host(-1), peerStringsMap, errors.New("did not find our own container name in hostfile")
 	}
-	return myID, peerStringsMap, nil
+	return host(myID), peerStringsMap, nil
 }
 
 func (a agent) multicast(msg GenericMessage) {
@@ -100,7 +100,7 @@ func sameIP(first net.IP, second net.IP) bool {
 	return true
 }
 
-func getPeerByAddr(peers peerMap, addr *net.UDPAddr) (int, peer, error) {
+func getPeerByAddr(peers peerMap, addr *net.UDPAddr) (host, peer, error) {
 	for idx, p := range peers {
 		if sameIP(p.IP, addr.IP) {
 			return idx, p, nil
@@ -110,10 +110,10 @@ func getPeerByAddr(peers peerMap, addr *net.UDPAddr) (int, peer, error) {
 }
 
 // Grab incoming message and push it into recvChan
-func recvDaemon(recvChan chan<- incomingUDPMessage, quitChan <-chan bool, peers peerMap, myIndex int) {
+func recvDaemon(recvChan chan<- incomingUDPMessage, quitChan <-chan bool, peers peerMap, myID host) {
 	// setup listener for incoming UDP connection
 	defer close(recvChan)
-	myself := peers[myIndex]
+	myself := peers[myID]
 	recvConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: myself.IP, Port: myself.Port})
 	if err != nil {
 		log.Fatal("listen udp: ", err)

@@ -7,9 +7,9 @@ import (
 
 // ViewChange Wrappers
 type WrapViewChange struct {
-	MsgType   MessageType
-	ServerID  int
-	Attempted int
+	MsgType   messageType
+	ServerID  host
+	Attempted host
 }
 
 func (v ViewChange) MarshalBinary() ([]byte, error) {
@@ -43,9 +43,9 @@ func (v *ViewChange) UnmarshalBinary(data []byte) error {
 
 // ViewChangeProof Wrappers
 type WrapViewChangeProof struct {
-	MsgType   MessageType
-	ServerID  int
-	Installed int
+	MsgType   messageType
+	ServerID  host
+	Installed host
 }
 
 func (v ViewChangeProof) MarshalBinary() ([]byte, error) {

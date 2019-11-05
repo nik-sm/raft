@@ -4,11 +4,11 @@ import "fmt"
 
 // type host int
 
-type MessageType int
+type messageType int
 
 type GenericMessage interface {
 	String() string
-	GetType() MessageType
+	GetType() messageType
 }
 
 // NOTE - To prevent errors, we make the `msgType` an unexported field.
@@ -19,17 +19,17 @@ type GenericMessage interface {
 
 // ViewChange message
 type ViewChange struct {
-	msgType   MessageType // Must be equal to 2
-	ServerID  int
-	Attempted int
+	msgType   messageType // Must be equal to 2
+	ServerID  host
+	Attempted host
 }
 
 const (
-	ViewChangeType      MessageType = 2
-	ViewChangeProofType MessageType = 3
+	ViewChangeType      messageType = 2
+	ViewChangeProofType messageType = 3
 )
 
-func NewViewChange(s int, a int) ViewChange {
+func NewViewChange(s host, a host) ViewChange {
 	return ViewChange{msgType: ViewChangeType, ServerID: s, Attempted: a}
 }
 
@@ -37,18 +37,18 @@ func (v ViewChange) String() string {
 	return fmt.Sprintf("VC. Type: %d, ServerID: %d, Attempted: %d", v.msgType, v.ServerID, v.Attempted)
 }
 
-func (v ViewChange) GetType() MessageType {
+func (v ViewChange) GetType() messageType {
 	return v.msgType
 }
 
 // ViewChangeProof message
 type ViewChangeProof struct {
-	msgType   MessageType // Must be equal to 3
-	ServerID  int
-	Installed int
+	msgType   messageType // Must be equal to 3
+	ServerID  host
+	Installed host
 }
 
-func NewViewChangeProof(s int, i int) ViewChangeProof {
+func NewViewChangeProof(s host, i host) ViewChangeProof {
 	return ViewChangeProof{
 		msgType:   ViewChangeProofType,
 		ServerID:  s,
@@ -59,6 +59,6 @@ func (v ViewChangeProof) String() string {
 	return fmt.Sprintf("VCP. Type: %d, ServerID: %d, Installed: %d", v.msgType, v.ServerID, v.Installed)
 }
 
-func (v ViewChangeProof) GetType() MessageType {
+func (v ViewChangeProof) GetType() messageType {
 	return v.msgType
 }

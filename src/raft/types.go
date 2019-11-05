@@ -12,6 +12,8 @@ import (
 
 type agentState int
 
+type host int
+
 const (
 	follower  agentState = iota
 	election  agentState = iota
@@ -19,14 +21,14 @@ const (
 	candidate agentState = iota
 )
 
-type peerMap map[int]peer
+type peerMap map[host]peer
 
-type peerStringMap map[int]string
+type peerStringMap map[host]string
 
-type vcMap map[int]ViewChange
+type vcMap map[host]ViewChange
 
 type viewEvent struct {
-	view          int
+	view          host
 	votesReceived []int
 	// 1 indicates received a vote from this peer
 	// 0 indicates received no vote from this peer
@@ -36,9 +38,9 @@ type viewHistory []viewEvent
 
 type agent struct {
 	verbose         bool
-	id              int
-	lastAttempted   int
-	lastInstalled   int
+	id              host
+	lastAttempted   host
+	lastInstalled   host
 	state           agentState
 	recvChan        chan incomingUDPMessage
 	quitChan        chan bool
@@ -86,7 +88,7 @@ func (a agent) String() string {
 }
 
 type incomingUDPMessage struct {
-	SourcePeerID int
+	SourcePeerID host
 	SourcePeer   peer
 	Contents     GenericMessage
 }

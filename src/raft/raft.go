@@ -22,7 +22,7 @@ func selectTimeout(min int, max int) time.Duration {
 }
 
 // returns true when an agent has a majority of votes for the proposed view
-func (a agent) preinstallReady(view int) bool {
+func (a agent) preinstallReady(view host) bool {
 	nPeers := len(a.peers)
 	nReq := int(math.Floor(float64(nPeers)/2)) + 1
 	nFound := 0
@@ -39,13 +39,13 @@ func (a agent) preinstallReady(view int) bool {
 
 // agent shifts into the election state, restarts its electionTimeout, and updates its
 // election-related local variables
-func (a *agent) shiftToLeaderElection(view int) {
+func (a *agent) shiftToLeaderElection(view host) {
 	if a.verbose {
 		log.Printf("shiftToLeaderElection, vote for %d", view)
 	}
 	a.resetElectionTicker()
 	a.state = election
-	vcMessages := make(map[int]ViewChange)
+	vcMessages := make(map[host]ViewChange)
 	a.lastAttempted = view
 	v := NewViewChange(a.id, view)
 	a.multicast(v)
@@ -53,8 +53,8 @@ func (a *agent) shiftToLeaderElection(view int) {
 	a.vcMessages = vcMessages
 }
 
-func (a agent) isLeader(v int) bool {
-	return v%len(a.peers) == a.id
+func (a agent) isLeader(v host) bool {
+	return int(v)%len(a.peers) == int(a.id)
 }
 
 // this function returns true if a message should be discarded
@@ -130,7 +130,7 @@ func (a *agent) handleMessage(msg incomingUDPMessage) {
 	}
 }
 
-func (a *agent) handleViewChange(senderID int, v ViewChange) {
+func (a *agent) handleViewChange(senderID host, v ViewChange) {
 	if a.verbose {
 		log.Printf("Received ViewChange: %s\n", v.String())
 	}
@@ -188,7 +188,7 @@ func (a *agent) handleViewChangeProof(v ViewChangeProof) {
 // entries in an agent's viewHistory either contain a list of votes that
 // constituted a majority, or all "-1" if the view was installed due to
 // `ViewChangeProof` message
-func (a *agent) appendHistory(view int, withVotes bool) {
+func (a *agent) appendHistory(view host, withVotes bool) {
 	if a.verbose {
 		log.Printf("history before append: %s", a.vh.String())
 	}
@@ -228,7 +228,16 @@ func (a *agent) shiftToFollower(withVotes bool) {
 	log.Printf("%d SHIFT TO FOLLOWER. VIEW=%d", a.id, a.lastInstalled)
 }
 
-func contains(s []int, i int) bool {
+func containsH(s []host, i host) bool {
+	for _, v := range s {
+		if v == i {
+			return true
+		}
+	}
+	return false
+}
+
+func containsI(s []int, i int) bool {
 	for _, v := range s {
 		if v == i {
 			return true
@@ -280,17 +289,17 @@ func (a agent) quitter(quitTime int) {
 	}
 }
 
-func getKillSwitch(nodeID int, testScenario int) bool {
-	var killNodes []int
+func getKillSwitch(nodeID host, testScenario int) bool {
+	var killNodes []host
 	if testScenario == 3 {
-		killNodes = []int{1}
+		killNodes = []host{1}
 	} else if testScenario == 4 {
-		killNodes = []int{1, 2}
+		killNodes = []host{1, 2}
 	} else if testScenario == 5 {
-		killNodes = []int{1, 2, 3}
+		killNodes = []host{1, 2, 3}
 	}
 
-	if len(killNodes) != 0 && contains(killNodes, nodeID) {
+	if len(killNodes) != 0 && containsH(killNodes, nodeID) {
 		log.Println("TEST CASE: This node will die upon becoming leader")
 		return true
 	}
@@ -328,7 +337,7 @@ func init() {
 
 func Raft() {
 	peers := make(peerMap)
-	if !contains([]int{1, 2, 3, 4, 5}, testScenario) {
+	if !containsI([]int{1, 2, 3, 4, 5}, testScenario) {
 		log.Fatalf("invalid test scenario: %d", testScenario)
 	} else {
 		log.Printf("TEST SCENARIO: %d", testScenario)
