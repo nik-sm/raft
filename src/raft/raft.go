@@ -3,6 +3,7 @@ package raft
 import (
 	"encoding/gob"
 	"flag"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -22,7 +23,7 @@ func selectTimeout(min int, max int) time.Duration {
 }
 
 // returns true when an agent has a majority of votes for the proposed view
-func (a agent) preinstallReady(view host) bool {
+func (a agent) preinstallReady(view Host) bool {
 	nPeers := len(a.peers)
 	nReq := int(math.Floor(float64(nPeers)/2)) + 1
 	nFound := 0
@@ -39,13 +40,13 @@ func (a agent) preinstallReady(view host) bool {
 
 // agent shifts into the election state, restarts its electionTimeout, and updates its
 // election-related local variables
-func (a *agent) shiftToLeaderElection(view host) {
+func (a *agent) shiftToLeaderElection(view Host) {
 	if a.verbose {
 		log.Printf("shiftToLeaderElection, vote for %d", view)
 	}
 	a.resetElectionTicker()
 	a.state = election
-	vcMessages := make(map[host]ViewChange)
+	vcMessages := make(map[Host]ViewChange)
 	a.lastAttempted = view
 	v := NewViewChange(a.id, view)
 	a.multicast(v)
@@ -53,7 +54,7 @@ func (a *agent) shiftToLeaderElection(view host) {
 	a.vcMessages = vcMessages
 }
 
-func (a agent) isLeader(v host) bool {
+func (a agent) isLeader(v Host) bool {
 	return int(v)%len(a.peers) == int(a.id)
 }
 
@@ -130,7 +131,7 @@ func (a *agent) handleMessage(msg incomingUDPMessage) {
 	}
 }
 
-func (a *agent) handleViewChange(senderID host, v ViewChange) {
+func (a *agent) handleViewChange(senderID Host, v ViewChange) {
 	if a.verbose {
 		log.Printf("Received ViewChange: %s\n", v.String())
 	}
@@ -188,7 +189,7 @@ func (a *agent) handleViewChangeProof(v ViewChangeProof) {
 // entries in an agent's viewHistory either contain a list of votes that
 // constituted a majority, or all "-1" if the view was installed due to
 // `ViewChangeProof` message
-func (a *agent) appendHistory(view host, withVotes bool) {
+func (a *agent) appendHistory(view Host, withVotes bool) {
 	if a.verbose {
 		log.Printf("history before append: %s", a.vh.String())
 	}
@@ -228,7 +229,7 @@ func (a *agent) shiftToFollower(withVotes bool) {
 	log.Printf("%d SHIFT TO FOLLOWER. VIEW=%d", a.id, a.lastInstalled)
 }
 
-func containsH(s []host, i host) bool {
+func containsH(s []Host, i Host) bool {
 	for _, v := range s {
 		if v == i {
 			return true
@@ -289,14 +290,14 @@ func (a agent) quitter(quitTime int) {
 	}
 }
 
-func getKillSwitch(nodeID host, testScenario int) bool {
-	var killNodes []host
+func getKillSwitch(nodeID Host, testScenario int) bool {
+	var killNodes []Host
 	if testScenario == 3 {
-		killNodes = []host{1}
+		killNodes = []Host{1}
 	} else if testScenario == 4 {
-		killNodes = []host{1, 2}
+		killNodes = []Host{1, 2}
 	} else if testScenario == 5 {
-		killNodes = []host{1, 2, 3}
+		killNodes = []Host{1, 2, 3}
 	}
 
 	if len(killNodes) != 0 && containsH(killNodes, nodeID) {
@@ -334,9 +335,15 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
+func (c *Client) ClientSendData(args *ClientData, reply *int) error {
+	fmt.Printf("raft received: %d\n", args.Contents)
+	*reply = args.Contents - 5
+	return nil
+}
+
 func Raft() {
 	flag.Parse()
-	peers := make(peerMap)
+	peers := make(PeerMap)
 	if !containsI([]int{1, 2, 3, 4, 5}, testScenario) {
 		log.Fatalf("invalid test scenario: %d", testScenario)
 	} else {
@@ -344,12 +351,12 @@ func Raft() {
 	}
 
 	recvChan := make(chan incomingUDPMessage)
-	id, peerStringMap, err := readHostfile(hostfile)
+	id, peerStringMap, err := ReadHostfile(hostfile)
 	if err != nil {
 		log.Fatal(err)
 	}
 	for {
-		allFound, err := resolvePeers(peers, peerStringMap)
+		allFound, err := ResolvePeers(peers, peerStringMap)
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -10,25 +10,27 @@ import (
 // TODO - could reduce usages of map and use slices instead where possible
 // TODO - could avoid future errors using `type hostID int`
 
-type agentState int
+type AgentState int
 
-type host int
+type Client int
+
+type Host int
 
 const (
-	follower  agentState = iota
-	election  agentState = iota
-	leader    agentState = iota
-	candidate agentState = iota
+	follower  AgentState = iota
+	election  AgentState = iota
+	leader    AgentState = iota
+	candidate AgentState = iota
 )
 
-type peerMap map[host]peer
+type PeerMap map[Host]peer
 
-type peerStringMap map[host]string
+type peerStringMap map[Host]string
 
-type vcMap map[host]ViewChange
+type vcMap map[Host]ViewChange
 
 type viewEvent struct {
-	view          host
+	view          Host
 	votesReceived []int
 	// 1 indicates received a vote from this peer
 	// 0 indicates received no vote from this peer
@@ -38,15 +40,15 @@ type viewHistory []viewEvent
 
 type agent struct {
 	verbose         bool
-	id              host
-	lastAttempted   host
-	lastInstalled   host
-	state           agentState
+	id              Host
+	lastAttempted   Host
+	lastInstalled   Host
+	state           AgentState
 	recvChan        chan incomingUDPMessage
 	quitChan        chan bool
 	electionTimeout time.Duration // seconds between elections
 	vcpTimeout      time.Duration // seconds between ViewChangeProof messages
-	peers           peerMap       // look up table of peer id, ip, port, hostname
+	peers           PeerMap       // look up table of peer id, ip, port, hostname
 	vcMessages      vcMap         // for temporary storage of messages during election
 	vh              viewHistory   // print at end to check protocol correctness
 	killSwitch      bool          // if true, node should exit upon becoming leader
@@ -54,7 +56,7 @@ type agent struct {
 	proofTicker     time.Ticker   // timeouts cause ViewChangeProof message to send
 }
 
-func (m peerMap) String() string {
+func (m PeerMap) String() string {
 	var sb strings.Builder
 	for i, v := range m {
 		sb.WriteString(fmt.Sprintf("%d=%s,", i, v.String()))
@@ -88,7 +90,7 @@ func (a agent) String() string {
 }
 
 type incomingUDPMessage struct {
-	SourcePeerID host
+	SourcePeerID Host
 	SourcePeer   peer
 	Contents     GenericMessage
 }

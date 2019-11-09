@@ -14,7 +14,7 @@ import (
 
 // Populate a map associating peer index to IP, port and hostname
 // returns true if all peers were found, and possible error
-func resolvePeers(peers peerMap, peerStringsMap peerStringMap) (bool, error) {
+func ResolvePeers(peers PeerMap, peerStringsMap peerStringMap) (bool, error) {
 	for i, hostname := range peerStringsMap {
 		log.Println("resolve host: ", hostname)
 		sendAddr, err := net.ResolveUDPAddr("udp", hostname+":"+recvPort)
@@ -29,7 +29,7 @@ func resolvePeers(peers peerMap, peerStringsMap peerStringMap) (bool, error) {
 	return len(peerStringsMap) == 0, nil
 }
 
-func readHostfile(hostfile string) (host, peerStringMap, error) {
+func ReadHostfile(hostfile string) (Host, peerStringMap, error) {
 	containerName := os.Getenv("CONTAINER_NAME")
 	contents, err := ioutil.ReadFile(hostfile)
 	if err != nil {
@@ -42,13 +42,13 @@ func readHostfile(hostfile string) (host, peerStringMap, error) {
 			if name == containerName {
 				myID = i
 			}
-			peerStringsMap[host(i)] = name
+			peerStringsMap[Host(i)] = name
 		}
 	}
 	if myID == -1 {
-		return host(-1), peerStringsMap, errors.New("did not find our own container name in hostfile")
+		return Host(-1), peerStringsMap, errors.New("did not find our own container name in hostfile")
 	}
-	return host(myID), peerStringsMap, nil
+	return Host(myID), peerStringsMap, nil
 }
 
 func (a agent) multicast(msg GenericMessage) {
@@ -100,7 +100,7 @@ func sameIP(first net.IP, second net.IP) bool {
 	return true
 }
 
-func getPeerByAddr(peers peerMap, addr *net.UDPAddr) (host, peer, error) {
+func getPeerByAddr(peers PeerMap, addr *net.UDPAddr) (Host, peer, error) {
 	for idx, p := range peers {
 		if sameIP(p.IP, addr.IP) {
 			return idx, p, nil
@@ -110,7 +110,7 @@ func getPeerByAddr(peers peerMap, addr *net.UDPAddr) (host, peer, error) {
 }
 
 // Grab incoming message and push it into recvChan
-func recvDaemon(recvChan chan<- incomingUDPMessage, quitChan <-chan bool, peers peerMap, myID host) {
+func recvDaemon(recvChan chan<- incomingUDPMessage, quitChan <-chan bool, peers PeerMap, myID Host) {
 	// setup listener for incoming UDP connection
 	defer close(recvChan)
 	myself := peers[myID]

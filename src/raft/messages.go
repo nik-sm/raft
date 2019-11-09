@@ -2,8 +2,6 @@ package raft
 
 import "fmt"
 
-// type host int
-
 type messageType int
 
 type GenericMessage interface {
@@ -17,11 +15,15 @@ type GenericMessage interface {
 // https://stackoverflow.com/questions/44290639/how-to-marshal-array-to-binary-and-unmarshal-binary-to-array-in-golang
 // We can keep all this complexity in a separate file, using the GetType() method
 
+type ClientData struct {
+	Contents int
+}
+
 // ViewChange message
 type ViewChange struct {
 	msgType   messageType // Must be equal to 2
-	ServerID  host
-	Attempted host
+	ServerID  Host
+	Attempted Host
 }
 
 const (
@@ -29,7 +31,7 @@ const (
 	ViewChangeProofType messageType = 3
 )
 
-func NewViewChange(s host, a host) ViewChange {
+func NewViewChange(s Host, a Host) ViewChange {
 	return ViewChange{msgType: ViewChangeType, ServerID: s, Attempted: a}
 }
 
@@ -44,11 +46,11 @@ func (v ViewChange) GetType() messageType {
 // ViewChangeProof message
 type ViewChangeProof struct {
 	msgType   messageType // Must be equal to 3
-	ServerID  host
-	Installed host
+	ServerID  Host
+	Installed Host
 }
 
-func NewViewChangeProof(s host, i host) ViewChangeProof {
+func NewViewChangeProof(s Host, i Host) ViewChangeProof {
 	return ViewChangeProof{
 		msgType:   ViewChangeProofType,
 		ServerID:  s,

@@ -1,8 +1,8 @@
 version: "3.5"
 
 services:
-  ds-agent-0: 
-    image: prj2
+  raft-agent-0: 
+    image: raft-image
     container_name: d0
     restart: "no"
     environment:
@@ -10,11 +10,11 @@ services:
     build:
       context: .
     networks:
-      - ds-network
+      - raft-network
     command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
 
-  ds-agent-1: 
-    image: prj2
+  raft-agent-1: 
+    image: raft-image
     container_name: d1
     restart: "no"
     environment:
@@ -22,11 +22,11 @@ services:
     build:
       context: .
     networks:
-      - ds-network
+      - raft-network
     command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
 
-  ds-agent-2: 
-    image: prj2
+  raft-agent-2: 
+    image: raft-image
     container_name: d2
     restart: "no"
     environment:
@@ -34,34 +34,24 @@ services:
     build:
       context: .
     networks:
-      - ds-network
+      - raft-network
     command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
 
-  ds-agent-3: 
-    image: prj2
-    container_name: d3
+  raft-client-0:
+    image: raft-image
+    container_name: c0
     restart: "no"
     environment:
-      - CONTAINER_NAME=d3
+      - CONTAINER_NAME=c0
     build:
       context: .
     networks:
-      - ds-network
-    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
-
-  ds-agent-4: 
-    image: prj2
-    container_name: d4
-    restart: "no"
-    environment:
-      - CONTAINER_NAME=d4
-    build:
-      context: .
-    networks:
-      - ds-network
-    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+      - raft-network
+    entrypoint: "client"
+    command: "-hostfile=hostfile.txt -data=datafile.txt -v=${PRJ2_VERBOSE}"
+      
 
 networks:
-  ds-network:
-    name: ds-network
+  raft-network:
+    name: raft-network
     driver: bridge
