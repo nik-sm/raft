@@ -15,6 +15,7 @@ type AgentState int
 type Client int
 
 type Host int
+type Term int
 
 const (
 	follower  AgentState = iota
