@@ -3,39 +3,39 @@ version: "3.5"
 services:
   raft-agent-0: 
     image: raft-image
-    container_name: d0
+    container_name: r0
     restart: "no"
     environment:
-      - CONTAINER_NAME=d0
+      - CONTAINER_NAME=r0
     build:
       context: .
     networks:
       - raft-network
-    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
 
   raft-agent-1: 
     image: raft-image
-    container_name: d1
+    container_name: r1
     restart: "no"
     environment:
-      - CONTAINER_NAME=d1
+      - CONTAINER_NAME=r1
     build:
       context: .
     networks:
       - raft-network
-    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
 
-  raft-agent-2: 
-    image: raft-image
-    container_name: d2
-    restart: "no"
-    environment:
-      - CONTAINER_NAME=d2
-    build:
-      context: .
-    networks:
-      - raft-network
-    command: "-h=hostfile.txt -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE} --tfrom=${PRJ2_TFROM} --ttil=${PRJ2_TTIL}"
+    #  raft-agent-2: 
+    #    image: raft-image
+    #    container_name: r2
+    #    restart: "no"
+    #    environment:
+    #      - CONTAINER_NAME=r2
+    #    build:
+    #      context: .
+    #    networks:
+    #      - raft-network
+    #    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
 
   raft-client-0:
     image: raft-image
@@ -48,7 +48,7 @@ services:
     networks:
       - raft-network
     entrypoint: "client"
-    command: "-hostfile=hostfile.txt -data=datafile.txt -v=${PRJ2_VERBOSE}"
+    command: "-hostfile=hostfile.json -data=datafile.txt -v=${PRJ2_VERBOSE}"
       
 
 networks:

@@ -9,7 +9,7 @@ COPY main_raft.go ./
 COPY main_client.go ./
 
 # Notice that hostfile needs to be in the directory where binary gets invoked
-COPY ./hostfile.txt /go/hostfile.txt
+COPY ./hostfile.json /go/hostfile.json
 COPY ./datafile.txt /go/datafile.txt
 RUN go build -o /bin/raft main_raft.go
 RUN go build -o /bin/client main_client.go

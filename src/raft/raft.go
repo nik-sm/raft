@@ -15,8 +15,6 @@ var testScenario int
 var recvPort int
 var duration int
 var verbose bool
-var tfrom int
-var ttil int
 
 func selectElectionTimeout() time.Duration {
 	min := 150
@@ -30,6 +28,7 @@ func selectHeartbeatTimeout() time.Duration {
 	return time.Duration((rand.Intn(max-min+1) + min)) * time.Millisecond
 }
 
+// Selects a timeout that is long enough to guarantee that electionTicker will fire first
 func fakeHeartbeatTimeout() time.Duration {
 	return time.Duration(10) * time.Second
 }
@@ -43,11 +42,13 @@ func haveMajority(votes map[Host]bool) bool {
 	nVoters := len(votes)
 	nReq := int(math.Floor(float64(nVoters)/2)) + 1
 	nFound := 0
+	log.Printf("Checking majority. nVoters: %d, nReq: %d", nVoters, nReq)
 	for _, votedYes := range votes {
 		if votedYes {
 			nFound++
 		}
 	}
+	log.Printf("Checking majority. nFound: %d", nFound)
 	if nFound >= nReq {
 		return true
 	}
@@ -74,6 +75,9 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID Host) {
 func (r *RaftNode) shiftToLeader() {
 	r.state = leader
 	r.resetTickers()
+	// Reset leader volatile state
+	r.nextIndex = make(map[Host]LogIndex)
+	r.matchIndex = make(map[Host]LogIndex)
 	log.Fatal("TODO")
 	return
 }
@@ -81,53 +85,50 @@ func (r *RaftNode) shiftToLeader() {
 func (r *RaftNode) shiftToCandidate() {
 	r.state = candidate
 	r.resetTickers()
-	r.currentTerm += 1
+	r.currentTerm++
 	go r.MultiRequestVoteRPC()
 	return
 }
 
 // If the client has contacted the wrong leader,
-func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply ClientResponse) error {
+func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) error {
 	if r.state != leader {
-		reply.success = false
-		// to make client logic easy, we redirect to ourselves if we do not know the leader
-		if r.currentLeader == -1 {
-			reply.leader = r.id
-		} else {
-			reply.leader = r.currentLeader
-		}
-		return nil
-	} else { // We are the leader. Attempt to replicate this to all peer logs
-		reply.leader = r.id
-		entry := LogEntry{term: r.currentTerm,
-			contents:        cd.Data,
-			clientID:        cd.ClientID,
-			clientSerialNum: cd.ClientSerialNum}
-
-		// Try to short-circuit based on the client serial num
-		if haveNewer, prevReply := r.log.haveNewerSerialNum(entry); haveNewer {
-			reply.success = prevReply.success
-			// reply.leader = prevReply.leader
-			// TODO - confirm: we do not want to notify about the previous leader, because if it is not us, the client will
-			// just get confused and contact the wrong node next time
-			// this situation only arises if the client's previous attempt was partially successful, but leader crashed before replying
-			return nil
-		}
-
-		r.log.append(entry)
-		log.Fatal("TODO - append the entry to leader's log")
-		haveMajority := false
-		for !haveMajority {
-			haveMajority = r.MultiAppendEntriesRPC([]LogEntry{entry})
-			if haveMajority {
-				// TODO - update commit index
-				r.executeLog() // TODO - need to make sure this successfully applied something to the state machine
-				reply.success = true
-				break
-			}
-		}
+		reply.Success = false
+		reply.Leader = r.currentLeader
+		// TODO - if we do not yet know leader, client will see reply.leader = -1. They should wait before recontact
 		return nil
 	}
+
+	// We are the leader. Attempt to replicate this to all peer logs
+	reply.Leader = r.id
+	entry := LogEntry{term: r.currentTerm,
+		contents:        cd.Data,
+		clientID:        cd.ClientID,
+		clientSerialNum: cd.ClientSerialNum}
+
+	// Try to short-circuit based on the client serial num
+	if haveNewer, prevReply := r.log.haveNewerSerialNum(entry); haveNewer {
+		reply.Success = prevReply.Success
+		// reply.leader = prevReply.leader
+		// TODO - confirm: we do not want to notify about the previous leader, because if it is not us, the client will
+		// just get confused and contact the wrong node next time
+		// this situation only arises if the client's previous attempt was partially successful, but leader crashed before replying
+		return nil
+	}
+
+	r.log.append(entry)
+	log.Fatal("TODO - append the entry to leader's log")
+	majorityStored := false
+	for !majorityStored {
+		majorityStored = r.MultiAppendEntriesRPC([]LogEntry{entry})
+		if majorityStored {
+			// TODO - update commit index
+			r.executeLog() // TODO - need to make sure this successfully applied something to the state machine
+			reply.Success = true
+			break
+		}
+	}
+	return nil
 }
 
 // For each incoming log entry, delete log suffix where there is a term conflict, and apply new entries
@@ -163,31 +164,31 @@ func (r *RaftNode) executeLog() {
 // TODO - some amount of duplicated logic in AppendEntries() and Vote()
 // Handles an incoming AppendEntriesRPC
 // Returns false if entries were rejected, or true if accepted
-func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply RPCResponse) error {
+func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) error {
 	defer r.persistState()
 	defer r.executeLog()
 	if ae.T > r.currentTerm {
 		r.shiftToFollower(ae.T, ae.LeaderID)
 	}
 
-	reply.term = r.currentTerm // no matter what, we will respond with our current term
+	reply.Term = r.currentTerm // no matter what, we will respond with our current term
 	if ae.T < r.currentTerm {
 		if r.verbose {
 			log.Println("AE from stale term")
 		}
-		reply.success = false
+		reply.Success = false
 		return nil
 	} else if r.log.contents[ae.PrevLogIndex].term != ae.PrevLogTerm { // TODO - does this work for the very first log entry?
 		if r.verbose {
 			log.Println("my PrevLogTerm does not match theirs")
 		}
-		reply.success = false
+		reply.Success = false
 		return nil
 	} else {
 		if r.verbose {
 			log.Println("Applying entries...")
 		}
-		reply.success = true
+		reply.Success = true
 		lastIndex := r.applyNewLogEntries(ae.Entries)
 
 		// Now we need to decide how to set our local commit index
@@ -217,35 +218,30 @@ func (r RaftNode) theyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Ter
 
 	if int(ourLastLogEntry.term) > int(theirLastLogTerm) {
 		return false
-	} else if ourLastLogEntry.term == theirLastLogTerm {
-		if ourLastLogIdx > int(theirLastLogIdx) {
-			return false
-		} else {
-			return true
-		}
-	} else { // They have more recent term
-		return true
+	} else if ourLastLogEntry.term == theirLastLogTerm && ourLastLogIdx > int(theirLastLogIdx) {
+		return false
 	}
+	return true
 }
 
 // TODO - need to decide where to compare lastApplied to commitIndex, and apply log entries to our local state machine
 
-func (r *RaftNode) Vote(rv RequestVoteStruct, reply RPCResponse) error {
+func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
 	r.persistState()
 	if rv.T < r.currentTerm {
 		if r.verbose {
 			log.Println("RV from stale term")
 		}
-		reply.term = r.currentTerm
-		reply.success = false
+		reply.Term = r.currentTerm
+		reply.Success = false
 		// TODO - should we also resetElectionTicker() here? We want progress, and a failed vote does not help progress, so probably not...
 		return nil
 	} else if (r.votedFor == -1 || r.votedFor == rv.CandidateID) && r.theyAreUpToDate(rv.LastLogIdx, rv.LastLogTerm) {
 		if r.verbose {
 			log.Println("Grant vote")
 		}
-		reply.term = r.currentTerm
-		reply.success = true
+		reply.Term = r.currentTerm
+		reply.Success = true
 		// TODO - should change some local state variables, like term number?
 		r.resetTickers()
 		return nil
@@ -344,12 +340,10 @@ func (r *RaftNode) shutdown() {
 }
 
 func init() {
-	flag.StringVar(&hostfile, "h", "hostfile.txt", "name of hostfile")
+	flag.StringVar(&hostfile, "h", "hostfile.json", "name of hostfile")
 	flag.IntVar(&testScenario, "t", 0, "test scenario to run")
 	flag.IntVar(&duration, "d", 30, "time until node shutdown")
 	flag.BoolVar(&verbose, "v", false, "verbose output")
-	flag.IntVar(&tfrom, "tfrom", 5, "low end of election timeout range")
-	flag.IntVar(&ttil, "ttil", 10, "high end of election timeout range")
 
 	recvPort = 4321
 	gob.Register(ViewChange{})
@@ -359,7 +353,8 @@ func init() {
 
 func Raft() {
 	flag.Parse()
-	peers := make(PeerMap)
+	hosts := make(HostMap)
+	clients := make(ClientMap)
 	if !containsI([]int{1, 2, 3, 4, 5}, testScenario) {
 		log.Fatalf("invalid test scenario: %d", testScenario)
 	} else {
@@ -367,13 +362,19 @@ func Raft() {
 	}
 	quitChan := make(chan bool)
 
+	initialLog := Log{make(map[Client]ClientSerialNum), make([]LogEntry, 0, 0)}
+	initialLog.append(LogEntry{term: Term(-1),
+		contents:        ClientData("LOG_START"),
+		clientID:        Client(-1),
+		clientSerialNum: ClientSerialNum(-1)})
+
 	r := RaftNode{
-		id:    ResolveAllPeers(peers, hostfile),
+		id:    Host(ResolveAllPeers(hosts, clients, hostfile, true)),
 		state: follower,
 
 		currentTerm: 0,
 		votedFor:    -1,
-		log:         Log{make(map[Client]ClientSerialNum), make([]LogEntry, 0, 0)},
+		log:         initialLog,
 
 		commitIndex:   0,
 		lastApplied:   0,
@@ -383,7 +384,8 @@ func Raft() {
 		nextIndex:  make(map[Host]LogIndex),
 		matchIndex: make(map[Host]LogIndex),
 
-		peers:           peers,
+		hosts:           hosts,
+		clients:         clients,
 		electionTicker:  *time.NewTicker(selectElectionTimeout()),
 		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout()),
 		votes:           make(electionResults),

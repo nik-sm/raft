@@ -37,9 +37,11 @@ func (p peer) String() string {
 	return fmt.Sprintf("Peer IP: %s, Port: %d, Hostname: %s", p.IP.String(), p.Port, p.Hostname)
 }
 
-type PeerMap map[Host]peer
+type HostMap map[Host]peer
+type ClientMap map[Client]peer
 
-type peerStringMap map[Host]string
+type hostStringMap map[Host]string
+type clientStringMap map[Client]string
 
 // Convenient temp storage during elections
 type electionResults map[Host]bool
@@ -65,7 +67,6 @@ func (l Log) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
 	} else {
 		return false, ClientResponse{}
 	}
-
 }
 
 func (l Log) getPrevResponse(le LogEntry) ClientResponse {
@@ -126,14 +127,22 @@ type LogAppendList []LogAppend
 // RPC
 // Response after RPC from another RaftNode
 type RPCResponse struct {
-	term    Term
-	success bool
+	Term    Term
+	Success bool
+}
+
+func (r RPCResponse) String() string {
+	return fmt.Sprintf("ClientResponse Term=%d, Success=%t", r.Term, r.Success)
 }
 
 // Response after RPC from client
 type ClientResponse struct {
-	success bool // if success == false, then client should retry using 'leader'
-	leader  Host
+	Success bool // if success == false, then client should retry using 'leader'
+	Leader  Host
+}
+
+func (c ClientResponse) String() string {
+	return fmt.Sprintf("ClientResponse Success=%t, Leader=%d", c.Success, c.Leader)
 }
 
 // RaftNode
@@ -158,7 +167,8 @@ type RaftNode struct {
 	matchIndex map[Host]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
 
 	// Convenience variables
-	peers           PeerMap         // look up table of peer id, ip, port, hostname
+	hosts           HostMap         // look up table of peer id, ip, port, hostname for other raft nodes
+	clients         ClientMap       // look up table of peer id, ip, port, hostname for clients
 	electionTicker  time.Ticker     // timeouts start each election
 	heartbeatTicker time.Ticker     // Leader-only ticker for sending heartbeats during idle periods
 	votes           electionResults // temp storage for election results
@@ -169,8 +179,8 @@ type RaftNode struct {
 }
 
 func (r RaftNode) String() string {
-	return fmt.Sprintf("Raft Node: id=%d, state=%s, currentTerm=%d, votedFor=%d, peers=%s, votes=%s, killSwitch=%t, verbose=%t, log=%s",
-		r.id, r.state, r.currentTerm, r.votedFor, r.peers.String(), r.votes.String(), r.killSwitch, r.verbose, r.log.String())
+	return fmt.Sprintf("Raft Node: id=%d, state=%s, currentTerm=%d, votedFor=%d, hosts={%s}, clients={%s}, votes={%s}, killSwitch=%t, verbose=%t, log=%s",
+		r.id, r.state, r.currentTerm, r.votedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.killSwitch, r.verbose, r.log.String())
 }
 
 func (s RaftNodeState) String() string {
@@ -186,10 +196,18 @@ func (s RaftNodeState) String() string {
 	}
 }
 
-func (m PeerMap) String() string {
+func (m HostMap) String() string {
 	var sb strings.Builder
 	for i, v := range m {
-		sb.WriteString(fmt.Sprintf("%d=%s,", i, v.String()))
+		sb.WriteString(fmt.Sprintf("%d={%s},", i, v.String()))
+	}
+	return sb.String()
+}
+
+func (m ClientMap) String() string {
+	var sb strings.Builder
+	for i, v := range m {
+		sb.WriteString(fmt.Sprintf("%d={%s},", i, v.String()))
 	}
 	return sb.String()
 }

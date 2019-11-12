@@ -1,76 +1,121 @@
 package raft
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/rpc"
 	"os"
-	"strings"
 	"time"
 )
 
 // All nodes must be alive to begin the protocol
 // We loop infinitely here, until we have network information for all nodes
 // 'peers' arg will be filled with appropriate info upon return
-// Returns our own Host id
-func ResolveAllPeers(peers PeerMap, hostfile string) Host {
-	id, peerStringMap, err := ReadHostfile(hostfile)
-	if err != nil {
-		log.Fatal(err)
+// Returns our own id as integer. Caller (either host or client) must cast appropriately
+func ResolveAllPeers(hosts HostMap, clients ClientMap, hostfile string, amHost bool) int {
+	decodedJson := ReadHostfileJson(hostfile)
+	myHost := Host(-1)
+	myClient := Client(-1)
+
+	// Lookup our own ID, depending whether we are a raft node or a client node
+	containerName := os.Getenv("CONTAINER_NAME")
+	if amHost {
+		for i, name := range decodedJson.RaftNodes {
+			if name == containerName {
+				myHost = Host(i)
+			}
+		}
+	} else {
+		for i, name := range decodedJson.ClientNodes {
+			if name == containerName {
+				myClient = Client(i)
+			}
+		}
+	}
+	if int(myHost) == -1 && int(myClient) == -1 {
+		log.Fatal("Did not find our own name in the hostfile")
 	}
 
+	// Make maps of all known hosts and clients
+	h, c := makeHostStringMap(decodedJson)
+
+	// Continue resolving until all hosts and clients found
 	for {
-		allFound, err := ResolvePeersOnce(peers, peerStringMap)
-		if err != nil {
-			log.Fatal(err)
-		}
+		allFound := ResolvePeersOnce(hosts, clients, h, c)
 		if allFound {
 			break
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return id
+	if amHost {
+		return int(myHost)
+	}
+	return int(myClient)
 }
 
-func ResolvePeersOnce(peers PeerMap, peerStringMap peerStringMap) (bool, error) {
-	for i, hostname := range peerStringMap {
+// NOTE - We do not handle the errors from LookupHost, because we are waiting for nodes to come online
+func ResolvePeersOnce(hosts HostMap, clients ClientMap, h hostStringMap, c clientStringMap) bool {
+	// Resolve raft hosts
+	for i, hostname := range h {
 		log.Println("resolve host: ", hostname)
+
 		sendAddrs, err := net.LookupHost(hostname)
-		// NOTE - not handling error here. We need to trust the hostfile contents so that
-		// we keep checking for the hosts, as specified by the hostfile, until they are alive
 		if err == nil {
-			// TODO - LookupHost returns a slice that we probably need to handle differently here...
-			log.Println("found: ", sendAddrs)
-			peers[i] = peer{IP: net.IP(sendAddrs[0]), Port: recvPort, Hostname: hostname}
-			delete(peerStringMap, i)
+			ip := net.ParseIP(sendAddrs[0])
+			log.Println("found: ", ip.String())
+			hosts[i] = peer{IP: ip, Port: recvPort, Hostname: hostname}
+			delete(h, i)
 		}
 	}
-	return len(peerStringMap) == 0, nil
+
+	// Resolve clients
+	for i, clientname := range c {
+		log.Println("resolve client: ", clientname)
+		sendAddrs, err := net.LookupHost(clientname)
+		if err == nil {
+			ip := net.ParseIP(sendAddrs[0])
+			log.Println("found: ", ip.String())
+			clients[i] = peer{IP: ip, Port: recvPort, Hostname: clientname}
+			delete(c, i)
+		}
+	}
+	return len(h) == 0 && len(c) == 0
 }
 
-func ReadHostfile(hostfile string) (Host, peerStringMap, error) {
-	containerName := os.Getenv("CONTAINER_NAME")
-	contents, err := ioutil.ReadFile(hostfile)
+type Hosts struct {
+	RaftNodes   []string `json:"servers"`
+	ClientNodes []string `json:"clients"`
+}
+
+// TODO - return hostStringMap and clientStringMap
+func ReadHostfileJson(hostfile string) Hosts {
+	// get contents of JSON file
+	jsonFile, err := os.Open(hostfile)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
-	myID := -1
-	peerStringsMap := make(peerStringMap)
-	for i, name := range strings.Split(string(contents), "\n") {
-		if name != "" { // remove blank lines
-			if name == containerName {
-				myID = i
-			}
-			peerStringsMap[Host(i)] = name
-		}
+	defer jsonFile.Close()
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+
+	var hosts Hosts
+	json.Unmarshal(byteValue, &hosts)
+	return hosts
+}
+
+func makeHostStringMap(hosts Hosts) (hostStringMap, clientStringMap) {
+	// Find our own ID and build a map for DNS lookup of other hosts
+	h := make(hostStringMap)
+	c := make(clientStringMap)
+	for i, name := range hosts.RaftNodes {
+		h[Host(i)] = name
 	}
-	if myID == -1 {
-		return Host(-1), peerStringsMap, errors.New("did not find our own container name in hostfile")
+	for i, name := range hosts.ClientNodes {
+		c[Client(i)] = name
 	}
-	return Host(myID), peerStringsMap, nil
+	return h, c
 }
 
 type AppendEntriesStruct struct {
@@ -91,13 +136,13 @@ func (r *RaftNode) MultiAppendEntriesRPC(entries []LogEntry) bool {
 		log.Println("MultiAppendEntries")
 	}
 	responses := make(map[Host]bool)
-	for peerID, p := range r.peers {
-		if peerID == r.id {
+	for hostID, h := range r.hosts {
+		if hostID == r.id {
 			continue
 		} else {
-			response := r.AppendEntriesRPC(p, entries)
+			response := r.AppendEntriesRPC(h, entries)
 			// TODO - should we check response.term to see if we need to jump ahead or something?
-			responses[peerID] = response.success
+			responses[hostID] = response.Success
 		}
 	}
 	return haveMajority(responses)
@@ -122,9 +167,9 @@ func (r *RaftNode) AppendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
 	reply := RPCResponse{}
 	conn, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", p.IP, p.Port))
 	if err != nil {
-		log.Fatal("error dialing peer") // TODO - this should not be fatal, we should just take note of the missing peer and maybe retry later
+		log.Fatal("error dialing peer,", err) // TODO - this should not be fatal, we should just take note of the missing peer and maybe retry later
 	}
-	err = conn.Call("AppendEntries", args, &reply)
+	err = conn.Call("RaftNode.AppendEntries", args, &reply)
 	if err != nil {
 		log.Fatal("AppendEntriesRPC:", err)
 	}
@@ -143,17 +188,17 @@ func (r *RaftNode) MultiRequestVoteRPC() {
 	if r.verbose {
 		log.Println("MultiRequestVote")
 	}
-	responses := make(map[Host]bool)
-	for peerID, p := range r.peers {
+	r.votes = make(map[Host]bool)
+	for hostID, h := range r.hosts {
 		// TODO - confirm that we do not need to worry about receiving an AppendEntriesRPC from current leader mid-election
 		// if this DOES happen, because we lagged behind, then there must be a majority of peers who have moved on
 		// and they will just reject our RequestVoteRPC.
-		if peerID == r.id { // we always vote for ourself
-			responses[peerID] = true
+		if hostID == r.id { // we always vote for ourself
+			r.votes[hostID] = true
 		} else {
-			response := r.RequestVoteRPC(p)
+			response := r.RequestVoteRPC(h)
 			// TODO - should we check response.term??
-			responses[peerID] = response.success
+			r.votes[hostID] = response.Success
 		}
 	}
 	if r.wonElection() {
@@ -170,9 +215,9 @@ func (r RaftNode) RequestVoteRPC(p peer) RPCResponse {
 	reply := RPCResponse{}
 	conn, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", p.IP, p.Port))
 	if err != nil {
-		log.Fatal("error dialing peer") // TODO should this be fatal?
+		log.Fatal("error dialing peer,", err) // TODO should this be fatal?
 	}
-	err = conn.Call("Vote", args, &reply)
+	err = conn.Call("RaftNode.Vote", args, &reply)
 	if err != nil {
 		log.Fatal("RequestVoteRPC:", err)
 	}
@@ -193,16 +238,16 @@ type ClientDataStruct struct {
 // invoke methods on the same RaftNode object we use elsewhere?
 func (r *RaftNode) recvDaemon(quitChan <-chan bool) {
 	rpc.Register(r)
+	l, err := net.Listen("tcp", ":"+fmt.Sprintf("%d", recvPort))
+	if err != nil {
+		log.Fatal("listen error:", err)
+	}
 	for {
 		select {
 		case <-quitChan:
 			log.Println("QUIT RECV DAEMON")
 			return
 		default:
-			l, err := net.Listen("tcp", ":"+fmt.Sprintf("%d", recvPort))
-			if err != nil {
-				log.Fatal("listen error:", err)
-			}
 			conn, err := l.Accept()
 			if err != nil {
 				log.Fatal("accept error:", err)
