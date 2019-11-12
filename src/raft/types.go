@@ -69,7 +69,7 @@ func (l Log) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
 }
 
 func (l Log) getPrevResponse(le LogEntry) ClientResponse {
-	for idx, entry := range l.contents {
+	for _, entry := range l.contents {
 		if entry.clientID == le.clientID && entry.clientSerialNum == le.clientSerialNum {
 			return entry.clientResponse
 		}

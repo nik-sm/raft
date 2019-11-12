@@ -18,12 +18,7 @@ var recvPort string
 func Client() {
 	flag.Parse()
 	peers := make(raft.PeerMap)
-	id, peerStringMap, err := raft.ReadHostfile(hostfile)
-	allFound, err := raft.ResolvePeers(peers, peerStringMap)
-	fmt.Printf("my id: %d. allfound: %t", id, allFound)
-	if err != nil {
-		log.Fatal(err)
-	}
+	raft.ResolveAllPeers(peers, hostfile)
 
 	// Begin assuming node 0 is leader
 	server, err := rpc.DialHTTP("tcp", peers[0].IP.String()+fmt.Sprintf(":%d", peers[0].Port))

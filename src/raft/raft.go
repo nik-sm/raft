@@ -288,8 +288,7 @@ func (r *RaftNode) protocol() {
 	for {
 		select {
 		case <-r.heartbeatTicker.C:
-			result := r.MultiAppendEntriesRPC(make([]LogEntry, 0, 0))
-			// TODO - what do we do with the bool result here?
+			r.MultiAppendEntriesRPC(make([]LogEntry, 0, 0)) // TODO - should we save and inspect the bool result here?
 		case <-r.electionTicker.C:
 			// Periodically time out and start a new election
 			if r.verbose {
