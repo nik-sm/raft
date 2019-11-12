@@ -2,8 +2,8 @@ package raft
 
 import (
 	"encoding/gob"
+	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -12,23 +12,39 @@ import (
 
 var hostfile string
 var testScenario int
-var recvPort string
+var recvPort int
 var duration int
 var verbose bool
 var tfrom int
 var ttil int
 
-func selectTimeout(min int, max int) time.Duration {
-	return time.Duration(rand.Intn(max-min+1) + min)
+func selectElectionTimeout() time.Duration {
+	min := 150
+	max := 300
+	return time.Duration((rand.Intn(max-min+1) + min)) * time.Millisecond
+}
+
+func selectHeartbeatTimeout() time.Duration {
+	min := 50
+	max := 51
+	return time.Duration((rand.Intn(max-min+1) + min)) * time.Millisecond
+}
+
+func fakeHeartbeatTimeout() time.Duration {
+	return time.Duration(10) * time.Second
 }
 
 // returns true when an agent has a majority of votes for the proposed view
-func (a agent) preinstallReady(view Host) bool {
-	nPeers := len(a.peers)
-	nReq := int(math.Floor(float64(nPeers)/2)) + 1
+func (r RaftNode) wonElection() bool {
+	return haveMajority(r.votes)
+}
+
+func haveMajority(votes map[Host]bool) bool {
+	nVoters := len(votes)
+	nReq := int(math.Floor(float64(nVoters)/2)) + 1
 	nFound := 0
-	for _, v := range a.vcMessages {
-		if v.Attempted == view {
+	for _, votedYes := range votes {
+		if votedYes {
 			nFound++
 		}
 	}
@@ -38,195 +54,205 @@ func (a agent) preinstallReady(view Host) bool {
 	return false
 }
 
-// agent shifts into the election state, restarts its electionTimeout, and updates its
-// election-related local variables
-func (a *agent) shiftToLeaderElection(view Host) {
-	if a.verbose {
-		log.Printf("shiftToLeaderElection, vote for %d", view)
-	}
-	a.resetElectionTicker()
-	a.state = election
-	vcMessages := make(map[Host]ViewChange)
-	a.lastAttempted = view
-	v := NewViewChange(a.id, view)
-	a.multicast(v)
-	vcMessages[a.id] = v
-	a.vcMessages = vcMessages
+func (r RaftNode) persistState() {
+	// TODO - save state using Gob (?) for easy recover
+	// Save: currentTerm, votedFor, log
+	return
 }
 
-func (a agent) isLeader(v Host) bool {
-	return int(v)%len(a.peers) == int(a.id)
+func (r RaftNode) recoverFromDisk() {
+	// TODO - right at the restart of the node, check the standard place for
+	// a persisted state object. If exists, apply it, otherwise, just startup normally
 }
 
-// this function returns true if a message should be discarded
-func (a agent) shouldDiscard(msg incomingUDPMessage) (bool, string) {
-	switch t := msg.Contents.GetType(); t {
-	case ViewChangeType: // ViewChange
-		v, ok := msg.Contents.(ViewChange)
-		if !ok {
-			log.Fatal("error casting to ViewChange")
-		}
-		if msg.SourcePeerID == a.id {
-			return true, "our own message"
-		}
-		if a.state != election {
-			return true, "not in election state"
-		}
-		if v.Attempted <= a.lastInstalled {
-			return true, "attempted lower or equal to our latest"
-		}
-		if _, haveEntry := a.vcMessages[msg.SourcePeerID]; haveEntry {
-			return true, "already have message from this peer"
-		}
-		return false, ""
-	case ViewChangeProofType: // ViewChangeProof
-		v, ok := msg.Contents.(ViewChangeProof)
-		if !ok {
-			log.Fatal("error casting to ViewChangeProof")
-		}
-		if msg.SourcePeerID == a.id {
-			return true, "our own message"
-		}
-		if a.state != election {
-			return true, "not in election state"
-		}
-		if v.Installed <= a.lastInstalled {
-			return true, "Already installed greater or equal view"
-		}
-		return false, ""
-	default:
-		log.Fatalf("unknown message type: %d", t)
-	}
-	return false, ""
+// NOTE - important that for all the shiftTo...() functions, we must first set our state variable
+func (r *RaftNode) shiftToFollower(t Term, leaderID Host) {
+	r.state = follower
+	log.Fatal("TODO")
+	return
+}
+func (r *RaftNode) shiftToLeader() {
+	r.state = leader
+	r.resetTickers()
+	log.Fatal("TODO")
+	return
 }
 
-// wrapper function for checking incoming messages for conflicts
-// and dispatching an appropriate method based on the decoded message type
-func (a *agent) handleMessage(msg incomingUDPMessage) {
-	if a.verbose {
-		log.Printf("Received message. %s", msg.String())
-	}
-	if b, reason := a.shouldDiscard(msg); b {
-		if a.verbose {
-			log.Print("discard message: " + reason)
-		}
-		return
-	}
-
-	switch t := msg.Contents.GetType(); t {
-	case ViewChangeType:
-		v, ok := msg.Contents.(ViewChange)
-		if !ok {
-			log.Fatal("error casting to ViewChange")
-		}
-		a.handleViewChange(msg.SourcePeerID, v)
-	case ViewChangeProofType:
-		v, ok := msg.Contents.(ViewChangeProof)
-		if !ok {
-			log.Fatal("error casting to ViewChangeProof")
-		}
-		a.handleViewChangeProof(v)
-	default:
-		log.Fatalf("Unknown message type: %d", t)
-	}
+func (r *RaftNode) shiftToCandidate() {
+	r.state = candidate
+	r.resetTickers()
+	r.currentTerm += 1
+	go r.MultiRequestVoteRPC()
+	return
 }
 
-func (a *agent) handleViewChange(senderID Host, v ViewChange) {
-	if a.verbose {
-		log.Printf("Received ViewChange: %s\n", v.String())
-	}
-	att := v.Attempted
-	// NOTE - if we somehow get to the state where no majority of nodes is
-	// attempting the same view, it is necessary for us to bring them back
-	// "into sync" somehow. Either we can add randomness to their timers,
-	// or more simply, we can allow lagging nodes to catch up to the most recent
-	// election
-	if att > a.lastAttempted {
-		a.shiftToLeaderElection(att)
-		a.vcMessages[senderID] = v
-	} else if att == a.lastAttempted {
-		// store the message only if we do not already have a value for this peer
-		if _, ok := a.vcMessages[senderID]; !ok {
-			// log.Printf("Store message for peer %d", senderID)
-			a.vcMessages[senderID] = v
-			if a.verbose {
-				log.Printf("Current vcMessages: %s\n", a.vcMessages.String())
-			}
-		}
-		if a.preinstallReady(att) {
-			if a.verbose {
-				log.Printf("Preinstall Ready for %d\n", att)
-			}
-			//a.timeout *= 2
-
-			if a.isLeader(att) {
-				a.lastInstalled = a.lastAttempted
-				a.shiftToLeader(true)
-			} else {
-				a.lastInstalled = a.lastAttempted
-				a.shiftToFollower(true)
-			}
-		}
-	}
-}
-
-func (a *agent) handleViewChangeProof(v ViewChangeProof) {
-	if v.Installed > a.lastInstalled {
-		//prev := a.lastInstalled
-		if a.verbose {
-			log.Printf("CHANGE VIEW from %d to %d", a.lastInstalled, v.Installed)
-		}
-		a.lastInstalled = v.Installed
-
-		if a.isLeader(a.lastInstalled) {
-			a.shiftToLeader(false)
+// If the client has contacted the wrong leader,
+func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply ClientResponse) error {
+	if r.state != leader {
+		reply.success = false
+		// to make client logic easy, we redirect to ourselves if we do not know the leader
+		if r.currentLeader == -1 {
+			reply.leader = r.id
 		} else {
-			a.shiftToFollower(false)
+			reply.leader = r.currentLeader
 		}
-	}
-}
+		return nil
+	} else { // We are the leader. Attempt to replicate this to all peer logs
+		reply.leader = r.id
+		entry := LogEntry{term: r.currentTerm,
+			contents:        cd.Data,
+			clientID:        cd.ClientID,
+			clientSerialNum: cd.ClientSerialNum}
 
-// entries in an agent's viewHistory either contain a list of votes that
-// constituted a majority, or all "-1" if the view was installed due to
-// `ViewChangeProof` message
-func (a *agent) appendHistory(view Host, withVotes bool) {
-	if a.verbose {
-		log.Printf("history before append: %s", a.vh.String())
-	}
-	votes := make([]int, len(a.peers))
-	if withVotes { // record what evidence we received for installing this view
-		for i := range a.peers {
-			if _, ok := a.vcMessages[i]; ok { // we have a viewchange from peer i
-				votes[i] = 1
-			} else {
-				votes[i] = 0
+		// Try to short-circuit based on the client serial num
+		if haveNewer, prevReply := r.log.haveNewerSerialNum(entry); haveNewer {
+			reply.success = prevReply.success
+			// reply.leader = prevReply.leader
+			// TODO - confirm: we do not want to notify about the previous leader, because if it is not us, the client will
+			// just get confused and contact the wrong node next time
+			// this situation only arises if the client's previous attempt was partially successful, but leader crashed before replying
+			return nil
+		}
+
+		r.log.append(entry)
+		log.Fatal("TODO - append the entry to leader's log")
+		haveMajority := false
+		for !haveMajority {
+			haveMajority = r.MultiAppendEntriesRPC([]LogEntry{entry})
+			if haveMajority {
+				// TODO - update commit index
+				r.executeLog() // TODO - need to make sure this successfully applied something to the state machine
+				reply.success = true
+				break
 			}
 		}
-	} else { // we must have reached this view due to ViewChangeProof
-		for i := range a.peers {
-			votes[i] = -1
+		return nil
+	}
+}
+
+// For each incoming log entry, delete log suffix where there is a term conflict, and apply new entries
+// Returns the index of the last entry applied
+func (r *RaftNode) applyNewLogEntries(updates LogAppendList) LogIndex {
+	if r.verbose {
+		log.Printf("log before: %s", r.log.String())
+	}
+	for _, logAppendStruct := range updates {
+		logIndex := logAppendStruct.idx
+		logEntry := logAppendStruct.entry
+		if r.log.contents[logIndex].term != logEntry.term {
+			if r.verbose {
+				log.Printf("Found entries with conflict: had %s, want %s. Deleting suffix...", r.log.contents[logIndex].String(), logEntry.String())
+			}
+			// TODO - when we slice a log suffix, we need to also change our clientSerialNums info somehow???
+			r.log.contents = r.log.contents[:logIndex] // delete slice suffix, including item at logIndex. slice len changes, while slice cap does not
 		}
+		r.log.append(logEntry)
 	}
-	a.vh = append(a.vh, viewEvent{view: view, votesReceived: votes})
-	if a.verbose {
-		log.Printf("history after append: %s", a.vh.String())
+	if r.verbose {
+		log.Printf("log after: %s", r.log.String())
+	}
+	return LogIndex(len(r.log.contents) - 1)
+}
+
+// Based on our commit index, apply any log entries that are ready for commit
+func (r *RaftNode) executeLog() {
+	// TODO - need some stateMachine variable that represents a set of applied log entries
+	log.Fatal("TODO")
+}
+
+// TODO - some amount of duplicated logic in AppendEntries() and Vote()
+// Handles an incoming AppendEntriesRPC
+// Returns false if entries were rejected, or true if accepted
+func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply RPCResponse) error {
+	defer r.persistState()
+	defer r.executeLog()
+	if ae.T > r.currentTerm {
+		r.shiftToFollower(ae.T, ae.LeaderID)
+	}
+
+	reply.term = r.currentTerm // no matter what, we will respond with our current term
+	if ae.T < r.currentTerm {
+		if r.verbose {
+			log.Println("AE from stale term")
+		}
+		reply.success = false
+		return nil
+	} else if r.log.contents[ae.PrevLogIndex].term != ae.PrevLogTerm { // TODO - does this work for the very first log entry?
+		if r.verbose {
+			log.Println("my PrevLogTerm does not match theirs")
+		}
+		reply.success = false
+		return nil
+	} else {
+		if r.verbose {
+			log.Println("Applying entries...")
+		}
+		reply.success = true
+		lastIndex := r.applyNewLogEntries(ae.Entries)
+
+		// Now we need to decide how to set our local commit index
+		if ae.LeaderCommit > r.commitIndex {
+			if lastIndex < ae.LeaderCommit {
+				// we still need more entries from the leader, but we can commit what we have so far
+				r.commitIndex = lastIndex
+			} else {
+				// we may now have some log entries that are not yet ready for commit/still need quorum
+				// we can commit as much as the leader has
+				r.commitIndex = ae.LeaderCommit
+			}
+		}
+		return nil
 	}
 }
 
-func (a *agent) shiftToLeader(withVotes bool) {
-	if a.killSwitch {
-		log.Println("TEST CASE: node terminating")
-		a.shutdown() // NOTE - this puts a message on quitChan, but we will still appendHistory to show our evidence for this installation
+// Returns true if the incoming RequestVote shows that the peer is at least as up-to-date as we are
+// See paper section 5.4
+// TODO - can this be simplified?
+func (r RaftNode) theyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Term) bool {
+	ourLastLogIdx := len(r.log.contents) - 1
+	ourLastLogEntry := r.log.contents[ourLastLogIdx]
+	if r.verbose {
+		log.Printf("Comparing our lastLogEntry: %s, with theirs: (term %d, idx %d)", ourLastLogEntry.String(), theirLastLogTerm, theirLastLogIdx)
 	}
-	a.state = leader
-	a.appendHistory(a.lastInstalled, withVotes)
-	log.Printf("%d SHIFT TO LEADER. VIEW=%d", a.id, a.lastInstalled)
+
+	if int(ourLastLogEntry.term) > int(theirLastLogTerm) {
+		return false
+	} else if ourLastLogEntry.term == theirLastLogTerm {
+		if ourLastLogIdx > int(theirLastLogIdx) {
+			return false
+		} else {
+			return true
+		}
+	} else { // They have more recent term
+		return true
+	}
 }
 
-func (a *agent) shiftToFollower(withVotes bool) {
-	a.state = follower
-	a.appendHistory(a.lastInstalled, withVotes)
-	log.Printf("%d SHIFT TO FOLLOWER. VIEW=%d", a.id, a.lastInstalled)
+// TODO - need to decide where to compare lastApplied to commitIndex, and apply log entries to our local state machine
+
+func (r *RaftNode) Vote(rv RequestVoteStruct, reply RPCResponse) error {
+	r.persistState()
+	if rv.T < r.currentTerm {
+		if r.verbose {
+			log.Println("RV from stale term")
+		}
+		reply.term = r.currentTerm
+		reply.success = false
+		// TODO - should we also resetElectionTicker() here? We want progress, and a failed vote does not help progress, so probably not...
+		return nil
+	} else if (r.votedFor == -1 || r.votedFor == rv.CandidateID) && r.theyAreUpToDate(rv.LastLogIdx, rv.LastLogTerm) {
+		if r.verbose {
+			log.Println("Grant vote")
+		}
+		reply.term = r.currentTerm
+		reply.success = true
+		// TODO - should change some local state variables, like term number?
+		r.resetTickers()
+		return nil
+	} else {
+		log.Fatal("how did we get here?")
+		return errors.New("how did we get here")
+	}
 }
 
 func containsH(s []Host, i Host) bool {
@@ -247,45 +273,41 @@ func containsI(s []int, i int) bool {
 	return false
 }
 
-// Main leader Election Procedure
-func (a *agent) protocol() {
-	log.Printf("Begin Protocol. verbose: %t", a.verbose)
+func (r *RaftNode) getPrevLogIndex() LogIndex {
+	return LogIndex(len(r.log.contents) - 1)
+}
 
-	//if a.id == 0 {
-	//	log.Printf("SLEEP 30!")
-	//	time.Sleep(30 * time.Second)
-	//}
+func (r *RaftNode) getPrevLogTerm() Term {
+	return Term(r.log.contents[int(r.getPrevLogIndex())].term)
+}
+
+// Main leader Election Procedure
+func (r *RaftNode) protocol() {
+	log.Printf("Begin Protocol. verbose: %t", r.verbose)
 
 	for {
 		select {
-		case msg, ok := <-a.recvChan:
-			if !ok {
-				log.Printf("RecvChan might be closed: %s", msg.String())
-			}
-			a.handleMessage(msg)
-		case <-a.proofTicker.C:
-			// Periodically send out ViewChangeProof messages for servers that are behind or re-joining
-			a.multicast(NewViewChangeProof(a.id, a.lastInstalled))
-		case <-a.electionTicker.C:
+		case <-r.heartbeatTicker.C:
+			result := r.MultiAppendEntriesRPC(make([]LogEntry, 0, 0))
+			// TODO - what do we do with the bool result here?
+		case <-r.electionTicker.C:
 			// Periodically time out and start a new election
-			if a.verbose {
+			if r.verbose {
 				log.Println("TIMED OUT!")
 			}
-			a.shiftToLeaderElection(a.lastAttempted + 1)
+			r.shiftToCandidate()
 		}
 	}
 }
 
 // Quit the protocol on a timer (to be run in separate goroutine)
-func (a agent) quitter(quitTime int) {
+func (r *RaftNode) quitter(quitTime int) {
 	for {
 		select {
-		case <-a.quitChan:
-			// the agent decided it should quit
+		case <-r.quitChan: // the node decided it should quit
 			return
-		case <-time.After(time.Duration(quitTime) * time.Second):
-			// we decide the agent should quit
-			a.quitChan <- true
+		case <-time.After(time.Duration(quitTime) * time.Second): // we decide the node should quit
+			r.quitChan <- true
 		}
 	}
 }
@@ -307,18 +329,19 @@ func getKillSwitch(nodeID Host, testScenario int) bool {
 	return false
 }
 
-func (a *agent) initTickers() {
-	a.electionTicker = *time.NewTicker(a.electionTimeout * time.Second)
-	a.proofTicker = *time.NewTicker(a.vcpTimeout * time.Second)
+func (r *RaftNode) resetTickers() {
+	r.electionTicker = *time.NewTicker(selectElectionTimeout())
+	if r.state == leader {
+		r.heartbeatTicker = *time.NewTicker(selectHeartbeatTimeout())
+	} else {
+		// TODO - goofy solution, set the heartbeat very long unless we are leader
+		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout())
+	}
 }
 
-func (a *agent) resetElectionTicker() {
-	a.electionTicker = *time.NewTicker(a.electionTimeout * time.Second)
-}
-
-func (a *agent) shutdown() {
-	log.Println("AGENT SHUTTING DOWN")
-	a.quitChan <- true
+func (r *RaftNode) shutdown() {
+	log.Println("RAFT NODE SHUTTING DOWN")
+	r.quitChan <- true
 }
 
 func init() {
@@ -329,16 +352,10 @@ func init() {
 	flag.IntVar(&tfrom, "tfrom", 5, "low end of election timeout range")
 	flag.IntVar(&ttil, "ttil", 10, "high end of election timeout range")
 
-	recvPort = "4321"
+	recvPort = 4321
 	gob.Register(ViewChange{})
 	gob.Register(ViewChangeProof{})
 	rand.Seed(time.Now().UTC().UnixNano())
-}
-
-func (c *Client) ClientSendData(args *ClientData, reply *int) error {
-	fmt.Printf("raft received: %d\n", args.Contents)
-	*reply = args.Contents - 5
-	return nil
 }
 
 func Raft() {
@@ -349,45 +366,37 @@ func Raft() {
 	} else {
 		log.Printf("TEST SCENARIO: %d", testScenario)
 	}
-
-	recvChan := make(chan incomingUDPMessage)
-	id, peerStringMap, err := ReadHostfile(hostfile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	for {
-		allFound, err := ResolvePeers(peers, peerStringMap)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if allFound {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	vcMessages := make(vcMap)
-
 	quitChan := make(chan bool)
 
-	go recvDaemon(recvChan, quitChan, peers, id)
+	r := RaftNode{
+		id:    ResolveAllPeers(peers, hostfile),
+		state: follower,
 
-	a := agent{id: id,
+		currentTerm: 0,
+		votedFor:    -1,
+		log:         Log{make(map[Client]ClientSerialNum), make([]LogEntry, 0, 0)},
+
+		commitIndex:   0,
+		lastApplied:   0,
+		currentLeader: -1, // TODO - notice that client needs to validate the "currentLeader" response that they get during a redirection
+		// Alternatively, a node can redirect to itself until it knows who leader is
+
+		nextIndex:  make(map[Host]LogIndex),
+		matchIndex: make(map[Host]LogIndex),
+
 		peers:           peers,
-		vcMessages:      vcMessages,
-		electionTimeout: selectTimeout(tfrom, ttil),
-		vcpTimeout:      selectTimeout(1, 1),
-		state:           follower,
-		lastAttempted:   -1, // Starting with -1 so we run an initial election for node 0
-		lastInstalled:   -1,
-		recvChan:        recvChan,
+		electionTicker:  *time.NewTicker(selectElectionTimeout()),
+		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout()),
+		votes:           make(electionResults),
+		killSwitch:      false,
 		quitChan:        quitChan,
-		killSwitch:      getKillSwitch(id, testScenario),
-		verbose:         verbose} // NOTE - set to true for verbose mode
-	a.initTickers()
-	log.Printf("Agent details: %s", a.String())
+		verbose:         verbose}
 
-	go a.protocol()
-	go a.quitter(duration)
+	log.Printf("RaftNode: %s", r.String())
+
+	go r.recvDaemon(quitChan)
+	go r.protocol()
+	go r.quitter(duration)
 	<-quitChan
-	log.Printf("FINAL VIEW HISTORY: %s", a.vh.String())
+	log.Println("Finished...")
 }

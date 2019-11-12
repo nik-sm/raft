@@ -15,10 +15,6 @@ type GenericMessage interface {
 // https://stackoverflow.com/questions/44290639/how-to-marshal-array-to-binary-and-unmarshal-binary-to-array-in-golang
 // We can keep all this complexity in a separate file, using the GetType() method
 
-type ClientData struct {
-	Contents int
-}
-
 // ViewChange message
 type ViewChange struct {
 	msgType   messageType // Must be equal to 2
