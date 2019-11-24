@@ -10,9 +10,9 @@ import (
 
 // TODO - could reduce usages of map and use slices instead where possible
 
-type Client int // TODO - if we only have a single client, maybe this can be simplified to "type client peer"
-type Host int
-type Term Host
+type ClientID int // TODO - if we only have a single client, maybe this can be simplified to "type client peer"
+type HostID int
+type Term HostID
 
 func (t Term) String() string {
 	return fmt.Sprintf("%d", t)
@@ -37,14 +37,14 @@ func (p peer) String() string {
 	return fmt.Sprintf("Peer IP: %s, Port: %d, Hostname: %s", p.IP.String(), p.Port, p.Hostname)
 }
 
-type HostMap map[Host]peer
-type ClientMap map[Client]peer
+type HostMap map[HostID]peer
+type ClientMap map[ClientID]peer
 
-type hostStringMap map[Host]string
-type clientStringMap map[Client]string
+type hostStringMap map[HostID]string
+type clientStringMap map[ClientID]string
 
 // Convenient temp storage during elections
-type electionResults map[Host]bool
+type electionResults map[HostID]bool
 
 func (e electionResults) String() string {
 	var sb strings.Builder
@@ -56,8 +56,12 @@ func (e electionResults) String() string {
 
 // Log
 type Log struct {
-	clientSerialNums map[Client]ClientSerialNum
+	clientSerialNums map[ClientID]ClientSerialNum
 	contents         []LogEntry
+}
+
+func NewLog Log {
+	return Log{make(map[ClientID]ClientSerialNum), make([]LogEntry, 0, 0)}
 }
 
 func (l Log) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
@@ -106,7 +110,7 @@ type LogIndex int
 type LogEntry struct {
 	term            Term
 	contents        ClientData
-	clientID        Client          // The client who sent this data
+	clientID        ClientID        // The client who sent this data
 	clientSerialNum ClientSerialNum // The unique number the client used to identify this data
 	clientResponse  ClientResponse  // The response that was given to this client
 }
@@ -138,7 +142,7 @@ func (r RPCResponse) String() string {
 // Response after RPC from client
 type ClientResponse struct {
 	Success bool // if success == false, then client should retry using 'leader'
-	Leader  Host
+	Leader  HostID
 }
 
 func (c ClientResponse) String() string {
@@ -147,24 +151,23 @@ func (c ClientResponse) String() string {
 
 // RaftNode
 type RaftNode struct {
-	id    Host          // id of this node
+	id    HostID        // id of this node
 	state RaftNodeState // follower, leader, or candidate
 
 	// Persistent State
-	currentTerm Term // latest term server has seen
-	votedFor    Host // ID of candidate that received vote in current term (or null if none) // TODO - null? -1?
+	currentTerm Term   // latest term server has seen
+	votedFor    HostID // ID of candidate that received vote in current term (or null if none) // TODO - null? -1?
 	log         Log
 
 	// Volatile State
 	commitIndex   LogIndex
 	lastApplied   LogIndex
-	currentLeader Host
-	// TODO - paper does not mention storing leader, but we need to redirect clients to the leader
+	currentLeader HostID
 	// notice that a Term can have 0 leaders, so this should not be included inside Term type
 
 	// Volatile State (leader only, reset after each election)
-	nextIndex  map[Host]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
-	matchIndex map[Host]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
+	nextIndex  map[HostID]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
+	matchIndex map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
 
 	// Convenience variables
 	hosts           HostMap         // look up table of peer id, ip, port, hostname for other raft nodes
@@ -175,7 +178,6 @@ type RaftNode struct {
 	killSwitch      bool            // if true, node should exit upon becoming leader
 	quitChan        chan bool       // for cleaning up spawned goroutines
 	verbose         bool
-	// proofTicker    time.Ticker     // timeouts cause ViewChangeProof message to send // TODO - should this be a fixed multiple of election ticker?
 }
 
 func (r RaftNode) String() string {

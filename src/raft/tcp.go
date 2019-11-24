@@ -17,21 +17,21 @@ import (
 // Returns our own id as integer. Caller (either host or client) must cast appropriately
 func ResolveAllPeers(hosts HostMap, clients ClientMap, hostfile string, amHost bool) int {
 	decodedJson := ReadHostfileJson(hostfile)
-	myHost := Host(-1)
-	myClient := Client(-1)
+	myHost := HostID(-1)
+	myClient := ClientID(-1)
 
 	// Lookup our own ID, depending whether we are a raft node or a client node
 	containerName := os.Getenv("CONTAINER_NAME")
 	if amHost {
 		for i, name := range decodedJson.RaftNodes {
 			if name == containerName {
-				myHost = Host(i)
+				myHost = HostID(i)
 			}
 		}
 	} else {
 		for i, name := range decodedJson.ClientNodes {
 			if name == containerName {
-				myClient = Client(i)
+				myClient = ClientID(i)
 			}
 		}
 	}
@@ -85,13 +85,13 @@ func ResolvePeersOnce(hosts HostMap, clients ClientMap, h hostStringMap, c clien
 	return len(h) == 0 && len(c) == 0
 }
 
-type Hosts struct {
+type HostsAndClients struct {
 	RaftNodes   []string `json:"servers"`
 	ClientNodes []string `json:"clients"`
 }
 
 // TODO - return hostStringMap and clientStringMap
-func ReadHostfileJson(hostfile string) Hosts {
+func ReadHostfileJson(hostfile string) HostsAndClients {
 	// get contents of JSON file
 	jsonFile, err := os.Open(hostfile)
 	if err != nil {
@@ -100,27 +100,27 @@ func ReadHostfileJson(hostfile string) Hosts {
 	defer jsonFile.Close()
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
-	var hosts Hosts
-	json.Unmarshal(byteValue, &hosts)
-	return hosts
+	var hc HostsAndClients
+	json.Unmarshal(byteValue, &hc)
+	return hc
 }
 
-func makeHostStringMap(hosts Hosts) (hostStringMap, clientStringMap) {
+func makeHostStringMap(hc HostsAndClients) (hostStringMap, clientStringMap) {
 	// Find our own ID and build a map for DNS lookup of other hosts
 	h := make(hostStringMap)
 	c := make(clientStringMap)
-	for i, name := range hosts.RaftNodes {
-		h[Host(i)] = name
+	for i, name := range hc.RaftNodes {
+		h[HostID(i)] = name
 	}
-	for i, name := range hosts.ClientNodes {
-		c[Client(i)] = name
+	for i, name := range hc.ClientNodes {
+		c[ClientID(i)] = name
 	}
 	return h, c
 }
 
 type AppendEntriesStruct struct {
 	T            Term
-	LeaderID     Host
+	LeaderID     HostID
 	PrevLogIndex LogIndex
 	PrevLogTerm  Term
 	Entries      LogAppendList
@@ -135,7 +135,7 @@ func (r *RaftNode) MultiAppendEntriesRPC(entries []LogEntry) bool {
 	if r.verbose {
 		log.Println("MultiAppendEntries")
 	}
-	responses := make(map[Host]bool)
+	responses := make(map[HostID]bool)
 	for hostID, h := range r.hosts {
 		if hostID == r.id {
 			continue
@@ -178,7 +178,7 @@ func (r *RaftNode) AppendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
 
 type RequestVoteStruct struct {
 	T           Term
-	CandidateID Host
+	CandidateID HostID
 	LastLogIdx  LogIndex
 	LastLogTerm Term
 }
@@ -188,7 +188,7 @@ func (r *RaftNode) MultiRequestVoteRPC() {
 	if r.verbose {
 		log.Println("MultiRequestVote")
 	}
-	r.votes = make(map[Host]bool)
+	r.votes = make(map[HostID]bool)
 	for hostID, h := range r.hosts {
 		// TODO - confirm that we do not need to worry about receiving an AppendEntriesRPC from current leader mid-election
 		// if this DOES happen, because we lagged behind, then there must be a majority of peers who have moved on
@@ -229,7 +229,7 @@ func (r RaftNode) RequestVoteRPC(p peer) RPCResponse {
 // If a request is received with a stale ClientSerialNum, the leader can immediately reply "success"
 type ClientSerialNum int
 type ClientDataStruct struct {
-	ClientID        Client
+	ClientID        ClientID
 	Data            ClientData
 	ClientSerialNum ClientSerialNum
 }

@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"encoding/gob"
 	"errors"
 	"flag"
 	"log"
@@ -16,29 +15,12 @@ var recvPort int
 var duration int
 var verbose bool
 
-func selectElectionTimeout() time.Duration {
-	min := 150
-	max := 300
-	return time.Duration((rand.Intn(max-min+1) + min)) * time.Millisecond
-}
-
-func selectHeartbeatTimeout() time.Duration {
-	min := 50
-	max := 51
-	return time.Duration((rand.Intn(max-min+1) + min)) * time.Millisecond
-}
-
-// Selects a timeout that is long enough to guarantee that electionTicker will fire first
-func fakeHeartbeatTimeout() time.Duration {
-	return time.Duration(10) * time.Second
-}
-
 // returns true when an agent has a majority of votes for the proposed view
 func (r RaftNode) wonElection() bool {
 	return haveMajority(r.votes)
 }
 
-func haveMajority(votes map[Host]bool) bool {
+func haveMajority(votes map[HostID]bool) bool {
 	nVoters := len(votes)
 	nReq := int(math.Floor(float64(nVoters)/2)) + 1
 	nFound := 0
@@ -67,7 +49,7 @@ func (r RaftNode) recoverFromDisk() {
 }
 
 // NOTE - important that for all the shiftTo...() functions, we must first set our state variable
-func (r *RaftNode) shiftToFollower(t Term, leaderID Host) {
+func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	r.state = follower
 	log.Fatal("TODO")
 	return
@@ -76,8 +58,8 @@ func (r *RaftNode) shiftToLeader() {
 	r.state = leader
 	r.resetTickers()
 	// Reset leader volatile state
-	r.nextIndex = make(map[Host]LogIndex)
-	r.matchIndex = make(map[Host]LogIndex)
+	r.nextIndex = make(map[HostID]LogIndex)
+	r.matchIndex = make(map[HostID]LogIndex)
 	log.Fatal("TODO")
 	return
 }
@@ -251,7 +233,7 @@ func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
 	}
 }
 
-func containsH(s []Host, i Host) bool {
+func containsH(s []HostID, i HostID) bool {
 	for _, v := range s {
 		if v == i {
 			return true
@@ -307,14 +289,14 @@ func (r *RaftNode) quitter(quitTime int) {
 	}
 }
 
-func getKillSwitch(nodeID Host, testScenario int) bool {
-	var killNodes []Host
+func getKillSwitch(nodeID HostID, testScenario int) bool {
+	var killNodes []HostID
 	if testScenario == 3 {
-		killNodes = []Host{1}
+		killNodes = []HostID{1}
 	} else if testScenario == 4 {
-		killNodes = []Host{1, 2}
+		killNodes = []HostID{1, 2}
 	} else if testScenario == 5 {
-		killNodes = []Host{1, 2, 3}
+		killNodes = []HostID{1, 2, 3}
 	}
 
 	if len(killNodes) != 0 && containsH(killNodes, nodeID) {
@@ -327,10 +309,10 @@ func getKillSwitch(nodeID Host, testScenario int) bool {
 func (r *RaftNode) resetTickers() {
 	r.electionTicker = *time.NewTicker(selectElectionTimeout())
 	if r.state == leader {
-		r.heartbeatTicker = *time.NewTicker(selectHeartbeatTimeout())
+		r.heartbeatTicker = *time.NewTicker(heartbeatTimeout)
 	} else {
 		// TODO - goofy solution, set the heartbeat very long unless we are leader
-		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout())
+		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout)
 	}
 }
 
@@ -346,8 +328,6 @@ func init() {
 	flag.BoolVar(&verbose, "v", false, "verbose output")
 
 	recvPort = 4321
-	gob.Register(ViewChange{})
-	gob.Register(ViewChangeProof{})
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
@@ -362,14 +342,14 @@ func Raft() {
 	}
 	quitChan := make(chan bool)
 
-	initialLog := Log{make(map[Client]ClientSerialNum), make([]LogEntry, 0, 0)}
+	initialLog := NewLog()
 	initialLog.append(LogEntry{term: Term(-1),
 		contents:        ClientData("LOG_START"),
-		clientID:        Client(-1),
+		clientID:        ClientID(-1),
 		clientSerialNum: ClientSerialNum(-1)})
 
 	r := RaftNode{
-		id:    Host(ResolveAllPeers(hosts, clients, hostfile, true)),
+		id:    HostID(ResolveAllPeers(hosts, clients, hostfile, true)),
 		state: follower,
 
 		currentTerm: 0,
@@ -378,16 +358,15 @@ func Raft() {
 
 		commitIndex:   0,
 		lastApplied:   0,
-		currentLeader: -1, // TODO - notice that client needs to validate the "currentLeader" response that they get during a redirection
-		// Alternatively, a node can redirect to itself until it knows who leader is
+		currentLeader: -1, // NOTE - notice that client needs to validate the "currentLeader" response that they get during a redirection
 
-		nextIndex:  make(map[Host]LogIndex),
-		matchIndex: make(map[Host]LogIndex),
+		nextIndex:  make(map[HostID]LogIndex),
+		matchIndex: make(map[HostID]LogIndex),
 
 		hosts:           hosts,
 		clients:         clients,
 		electionTicker:  *time.NewTicker(selectElectionTimeout()),
-		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout()),
+		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout),
 		votes:           make(electionResults),
 		killSwitch:      false,
 		quitChan:        quitChan,
