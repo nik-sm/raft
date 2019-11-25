@@ -54,15 +54,27 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	r.resetTickers()
 	r.currentTerm = t
 	r.currentLeader = leaderID
+	// TODO - should we bother storing a nil entry for these leader-only maps?
+	r.nextIndex = nil
+	r.matchIndex = nil
 	return
 }
+
 func (r *RaftNode) shiftToLeader() {
 	r.state = leader
+	r.currentLeader = r.id
 	r.resetTickers()
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
 	r.matchIndex = make(map[HostID]LogIndex)
+	for peerID := range r.hosts {
+		r.nextIndex[peerID] = r.lastApplied + 1
+		r.matchIndex[peerID] = 0
+	}
+
 	log.Fatal("TODO")
+	// r.currentTerm
+	// r.votedFor
 	return
 }
 
@@ -74,17 +86,23 @@ func (r *RaftNode) shiftToCandidate() {
 	return
 }
 
-// If the client has contacted the wrong leader,
+// StoreClientData allows a client to send data to the raft cluster via RPC for storage
+// We fill the reply struct with "success = true" if we are leader and store the data successfully.
+// If we are not leader, we will reply with the id of another node, and the client
+// must detect this and retry at that node.
+// If we do not know or do not yet have a leader, we will reply with leader = -1 and
+// client may choose to retry at us or another random node.
 func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) error {
+	// NOTE - if we do not yet know leader, client will see reply.leader = -1.
+	// They should wait before recontact, and may recontact us or another random node
+	reply.Leader = r.currentLeader
+	reply.success = false // by default, assume we will fail
+
 	if r.state != leader {
-		reply.Success = false
-		reply.Leader = r.currentLeader
-		// TODO - if we do not yet know leader, client will see reply.leader = -1. They should wait before recontact
 		return nil
 	}
 
 	// We are the leader. Attempt to replicate this to all peer logs
-	reply.Leader = r.id
 	entry := LogEntry{term: r.currentTerm,
 		clientData:      cd.Data,
 		clientID:        cd.ClientID,
@@ -94,7 +112,7 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 	if haveNewer, prevReply := r.haveNewerSerialNum(entry); haveNewer {
 		reply.Success = prevReply.Success
 		// reply.leader = prevReply.leader
-		// TODO - confirm: we do not want to notify about the previous leader, because if it is not us, the client will
+		// NOTE - we do not want to notify about the previous leader, because if it is not us, the client will
 		// just get confused and contact the wrong node next time
 		// this situation only arises if the client's previous attempt was partially successful, but leader crashed before replying
 		return nil
@@ -103,12 +121,16 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 	r.append(entry)
 	majorityStored := false
 	for !majorityStored {
-		majorityStored = r.MultiAppendEntriesRPC([]LogEntry{entry})
-		if majorityStored {
-			// TODO - update commit index
-			r.executeLog() // TODO - need to make sure this successfully applied something to the state machine
-			reply.Success = true
+		select {
+		case <-time.After(r.giveUpTimeout): // leader gives up and reports failure to client
 			break
+		default:
+			majorityStored = r.MultiAppendEntriesRPC([]LogEntry{entry})
+			if majorityStored {
+				r.executeLog()
+				reply.Success = true
+				break
+			}
 		}
 	}
 	return nil
@@ -141,6 +163,7 @@ func (r *RaftNode) applyNewLogEntries(updates LogAppendList) LogIndex {
 // Based on our commit index, apply any log entries that are ready for commit
 func (r *RaftNode) executeLog() {
 	// TODO - need some stateMachine variable that represents a set of applied log entries
+	// TODO - update commit index
 	log.Fatal("TODO")
 }
 
@@ -266,10 +289,10 @@ func (r *RaftNode) protocol() {
 
 	for {
 		select {
-		case <-r.heartbeatTicker.C:
-			r.MultiAppendEntriesRPC(make([]LogEntry, 0, 0)) // TODO - should we save and inspect the bool result here?
-		case <-r.electionTicker.C:
-			// Periodically time out and start a new election
+		case <-r.heartbeatTicker.C: // Send a heartbeat (AppendEntriesRPC without contents)
+			// We do not track the success/failure of the heartbeat
+			r.MultiAppendEntriesRPC(make([]LogEntry, 0, 0))
+		case <-r.electionTicker.C: // Periodically time out and start a new election
 			if r.verbose {
 				log.Println("TIMED OUT!")
 			}
