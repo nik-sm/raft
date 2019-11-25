@@ -51,7 +51,9 @@ func (r RaftNode) recoverFromDisk() {
 // NOTE - important that for all the shiftTo...() functions, we must first set our state variable
 func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	r.state = follower
-	log.Fatal("TODO")
+	r.resetTickers()
+	r.currentTerm = t
+	r.currentLeader = leaderID
 	return
 }
 func (r *RaftNode) shiftToLeader() {
@@ -84,12 +86,12 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 	// We are the leader. Attempt to replicate this to all peer logs
 	reply.Leader = r.id
 	entry := LogEntry{term: r.currentTerm,
-		contents:        cd.Data,
+		clientData:      cd.Data,
 		clientID:        cd.ClientID,
 		clientSerialNum: cd.ClientSerialNum}
 
 	// Try to short-circuit based on the client serial num
-	if haveNewer, prevReply := r.log.haveNewerSerialNum(entry); haveNewer {
+	if haveNewer, prevReply := r.haveNewerSerialNum(entry); haveNewer {
 		reply.Success = prevReply.Success
 		// reply.leader = prevReply.leader
 		// TODO - confirm: we do not want to notify about the previous leader, because if it is not us, the client will
@@ -98,8 +100,7 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 		return nil
 	}
 
-	r.log.append(entry)
-	log.Fatal("TODO - append the entry to leader's log")
+	r.append(entry)
 	majorityStored := false
 	for !majorityStored {
 		majorityStored = r.MultiAppendEntriesRPC([]LogEntry{entry})
@@ -129,7 +130,7 @@ func (r *RaftNode) applyNewLogEntries(updates LogAppendList) LogIndex {
 			// TODO - when we slice a log suffix, we need to also change our clientSerialNums info somehow???
 			r.log.contents = r.log.contents[:logIndex] // delete slice suffix, including item at logIndex. slice len changes, while slice cap does not
 		}
-		r.log.append(logEntry)
+		r.append(logEntry)
 	}
 	if r.verbose {
 		log.Printf("log after: %s", r.log.String())
@@ -342,19 +343,25 @@ func Raft() {
 	}
 	quitChan := make(chan bool)
 
+	// Initialize Log
 	initialLog := NewLog()
 	initialLog.append(LogEntry{term: Term(-1),
-		contents:        ClientData("LOG_START"),
+		clientData:      ClientData("LOG_START"),
 		clientID:        ClientID(-1),
 		clientSerialNum: ClientSerialNum(-1)})
 
+	// Initialize StateMachine
+	initialSM := NewStateMachine()
+
+	// TODO - make a NewRaftNode constructor
 	r := RaftNode{
 		id:    HostID(ResolveAllPeers(hosts, clients, hostfile, true)),
 		state: follower,
 
-		currentTerm: 0,
-		votedFor:    -1,
-		log:         initialLog,
+		currentTerm:  0,
+		votedFor:     -1,
+		log:          initialLog,
+		stateMachine: initialSM,
 
 		commitIndex:   0,
 		lastApplied:   0,
@@ -371,6 +378,12 @@ func Raft() {
 		killSwitch:      false,
 		quitChan:        quitChan,
 		verbose:         verbose}
+
+	// Initialize State Machine
+	for clientID, _ := range clients {
+		r.stateMachine.clientSerialNums[clientID] = -1
+	}
+	r.stateMachine.contents = append(r.stateMachine.contents, "STATE_MACHINE_START")
 
 	log.Printf("RaftNode: %s", r.String())
 
