@@ -97,7 +97,7 @@ func readHostfileJSON(hostfile string) hostsAndClients {
 	// get contents of JSON file
 	jsonFile, err := os.Open(hostfile)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 	defer jsonFile.Close()
 	byteValue, _ := ioutil.ReadAll(jsonFile)
@@ -184,7 +184,7 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 			if int(theirNextIdx) == int(r.getLastLogIndex())+1 {
 				entries = make([]LogEntry, 0, 0) // empty entries because they are up-to-date
 			} else {
-				theirNextEntry := r.log.contents[theirNextIdx]
+				theirNextEntry := r.log[theirNextIdx]
 				entries = []LogEntry{theirNextEntry}
 			}
 
@@ -240,14 +240,14 @@ func (r *RaftNode) appendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
 
 // RequestVoteStruct holds the parameters used during the Vote() RPC
 type RequestVoteStruct struct {
-	T           Term
+	Term        Term
 	CandidateID HostID
 	LastLogIdx  LogIndex
 	LastLogTerm Term
 }
 
 func (rv RequestVoteStruct) String() string {
-	return fmt.Sprintf("Term: %d, CandidateID: %d, LastLogIdx: %d, LastLogTerm: %d", rv.T, rv.CandidateID, rv.LastLogIdx, rv.LastLogTerm)
+	return fmt.Sprintf("Term: %d, CandidateID: %d, LastLogIdx: %d, LastLogTerm: %d", rv.Term, rv.CandidateID, rv.LastLogIdx, rv.LastLogTerm)
 }
 
 // Send a requestVoteRPC to all peers, storing their responses
@@ -255,44 +255,38 @@ func (r *RaftNode) multiRequestVoteRPC() {
 	if r.verbose {
 		log.Println("MultiRequestVote")
 	}
-	r.votes = make(map[HostID]bool)
 	for hostID, h := range r.hosts {
-		// TODO - confirm that we do not need to worry about receiving an AppendEntriesRPC from current leader mid-election
-		// if this DOES happen, because we lagged behind, then there must be a majority of peers who have moved on
-		// and they will just reject our requestVoteRPC.
-		if hostID == r.id { // we always vote for ourself
-			r.votes[hostID] = true
+		if hostID == r.id {
+			continue
 		} else {
-			response := r.requestVoteRPC(h)
-			// TODO - should we check response.term??
-			r.votes[hostID] = response.Success
+			go r.requestVoteRPC(h)
 		}
-	}
-	if r.wonElection() {
-		r.shiftToLeader()
 	}
 }
 
 // Send out an RPC to the method "Vote" on the remote host
-func (r RaftNode) requestVoteRPC(p peer) RPCResponse {
-	args := RequestVoteStruct{T: r.currentTerm,
+func (r *RaftNode) requestVoteRPC(p peer) {
+	args := RequestVoteStruct{
+		Term:        r.currentTerm,
 		CandidateID: r.id,
 		LastLogIdx:  r.getLastLogIndex(),
 		LastLogTerm: r.getLastLogTerm()}
-	reply := RPCResponse{Term: r.currentTerm, Success: false, LeaderID: r.currentLeader}
+	// Fill response with default values in case of early return
+	response := RPCResponse{}
 
 	conn, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", p.IP, p.Port))
 	if err != nil {
 		// We do not crash here, because we don't care if that peer might be down
 		log.Printf("WARNING: problem dialing peer: %s. err: %s", p.String(), err)
-		return reply
+		response = RPCResponse{Term: r.currentTerm, Success: false, LeaderID: r.currentLeader}
+	} else {
+		err = conn.Call("RaftNode.Vote", args, &response)
+		if err != nil {
+			// We crash here, because we do not tolerate RPC errors
+			panic(fmt.Sprintf("requestVoteRPC: %s", err))
+		}
 	}
-	err = conn.Call("RaftNode.Vote", args, &reply)
-	if err != nil {
-		// We crash here, because we do not tolerate RPC errors
-		panic(fmt.Sprintf("requestVoteRPC: %s", err))
-	}
-	return reply
+	r.incomingChan <- incomingMsg{msgType: vote, response: response}
 }
 
 // TODO - // We need to check the clientSerialNum 2 times:

@@ -53,7 +53,8 @@ func (c *ClientNode) sendDataToHost(data raft.ClientData, host raft.HostID) (raf
 	}
 
 	// Prepare input for server
-	args := &raft.ClientDataStruct{ClientID: c.id,
+	args := &raft.ClientDataStruct{
+		ClientID:        c.id,
 		ClientSerialNum: c.serialNum,
 		Data:            data}
 

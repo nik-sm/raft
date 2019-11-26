@@ -2,6 +2,7 @@ package raft
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -53,7 +54,7 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 		log.Println("SHIFT TO FOLLOWER")
 	}
 	r.state = follower
-	r.resetTickers()
+	r.ResetTickers()
 	r.currentTerm = t
 	r.currentLeader = leaderID
 	// TODO - should we bother storing a nil entry for these leader-only maps?
@@ -72,7 +73,7 @@ func (r *RaftNode) shiftToLeader() {
 	r.state = leader
 	r.currentLeader = r.id
 	r.votedFor = r.id
-	r.resetTickers()
+	r.ResetTickers()
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
 	r.matchIndex = make(map[HostID]LogIndex)
@@ -91,12 +92,13 @@ func (r *RaftNode) shiftToCandidate() {
 	if r.verbose {
 		log.Println("SHIFT TO CANDIDATE")
 	}
+	r.votes = make(electionResults)
+	r.votes[r.id] = true
 	r.state = candidate
-	r.resetTickers()
+	r.ResetTickers()
 	r.currentTerm++
 	r.votedFor = r.id
 	go r.multiRequestVoteRPC()
-	return
 }
 
 // StoreClientData allows a client to send data to the raft cluster via RPC for storage
@@ -158,12 +160,12 @@ func (r *RaftNode) applyNewLogEntries(updates LogAppendList) LogIndex {
 	for _, logAppendStruct := range updates {
 		logIndex := logAppendStruct.idx
 		logEntry := logAppendStruct.entry
-		if r.log.contents[logIndex].term != logEntry.term {
+		if r.log[logIndex].term != logEntry.term {
 			if r.verbose {
-				log.Printf("Found entries with conflict: had %s, want %s. Deleting suffix...", r.log.contents[logIndex].String(), logEntry.String())
+				log.Printf("Found entries with conflict: had %s, want %s. Deleting suffix...", r.log[logIndex].String(), logEntry.String())
 			}
 			// TODO - when we slice a log suffix, we need to also change our clientSerialNums info somehow???
-			r.log.contents = r.log.contents[:logIndex] // delete slice suffix, including item at logIndex. slice len changes, while slice cap does not
+			r.log = r.log[:logIndex] // delete slice suffix, including item at logIndex. slice len changes, while slice cap does not
 		}
 		r.append(logEntry)
 	}
@@ -184,8 +186,8 @@ func (r *RaftNode) updateCommitIndex() {
 	//   set commitIndex = N
 	defer r.executeLog()
 	for n := r.commitIndex + 1; n <= r.getLastLogIndex(); n++ {
-		if r.log.contents[n].term != r.currentTerm {
-			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.log.contents[n].String())
+		if r.log[n].term != r.currentTerm {
+			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.log[n].String())
 			continue
 		}
 		peersAtThisLevel := make(map[HostID]bool)
@@ -209,7 +211,7 @@ func (r *RaftNode) executeLog() {
 	// TODO - update commit index
 	for r.commitIndex > r.lastApplied {
 		r.lastApplied++
-		r.stateMachine.apply(r.log.contents[r.lastApplied])
+		r.stateMachine.apply(r.log[r.lastApplied])
 	}
 }
 
@@ -230,7 +232,7 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) err
 		}
 		reply.Success = false
 		return nil
-	} else if r.log.contents[ae.PrevLogIndex].term != ae.PrevLogTerm { // TODO - does this work for the very first log entry?
+	} else if r.log[ae.PrevLogIndex].term != ae.PrevLogTerm { // TODO - does this work for the very first log entry?
 		if r.verbose {
 			log.Println("my PrevLogTerm does not match theirs")
 		}
@@ -259,19 +261,19 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) err
 	}
 }
 
+// CandidateLooksEligible allows a raft node to decide whether another host's log is sufficiently up-to-date to become leader
 // Returns true if the incoming RequestVote shows that the peer is at least as up-to-date as we are
 // See paper section 5.4
-// TODO - can this be simplified?
-func (r RaftNode) TheyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Term) bool {
+func (r RaftNode) CandidateLooksEligible(candLastLogIdx LogIndex, candLastLogTerm Term) bool {
 	ourLastLogIdx := r.getLastLogIndex()
-	ourLastLogEntry := r.log.contents[ourLastLogIdx]
+	ourLastLogEntry := r.log[ourLastLogIdx]
 	if r.verbose {
-		log.Printf("Comparing our lastLogEntry: %s, with theirs: (term %d, idx %d)", ourLastLogEntry.String(), theirLastLogTerm, theirLastLogIdx)
+		log.Printf("Comparing our lastLogEntry (term %d, index %d) VS theirs (term %d, idx %d)", ourLastLogEntry.term, ourLastLogIdx, candLastLogTerm, candLastLogIdx)
 	}
 
-	if int(ourLastLogEntry.term) > int(theirLastLogTerm) {
+	if int(ourLastLogEntry.term) > int(candLastLogTerm) {
 		return false
-	} else if ourLastLogEntry.term == theirLastLogTerm && int(ourLastLogIdx) > int(theirLastLogIdx) {
+	} else if ourLastLogEntry.term == candLastLogTerm && int(ourLastLogIdx) > int(candLastLogIdx) {
 		return false
 	}
 	return true
@@ -279,46 +281,56 @@ func (r RaftNode) TheyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Ter
 
 // TODO - need to decide where to compare lastApplied to commitIndex, and apply log entries to our local state machine
 
-// Vote is called by RPC from a candidate
-// Observations from simulation:
-//		1) If we get a requestVoteRPC from a future term, we immediately jump to that term and send our vote
-//    2) If we are already collecting votes for the next election, and simultaneously get a request from another node to vote for them, we do NOT give them our vote
-//			 (we've already voted for ourselves!)
-//    3) if we've been offline, and wakeup and try to get votes: we get rejections, that also tell us the new term, and we immediately jump to that term as a follower
+// Vote is called by RPC from a candidate. We can observe the following from the raft.github.io simulation:
+//	1) If we get a requestVoteRPC from a future term, we immediately jump to that term and send our vote
+//	2) If we are already collecting votes for the next election, and simultaneously get a request from another node to vote for them, we do NOT give them our vote
+//    (we've already voted for ourselves!)
+//	3) if we've been offline, and wakeup and try to get votes: we get rejections, that also tell us the new term, and we immediately jump to that term as a follower
 func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
 	if r.verbose {
 		log.Printf("Vote(). RequestVoteStruct: %s. My node: %s", rv.String(), r.String())
 	}
 	r.persistState()
-	if rv.T <= r.currentTerm { // NOTE - we only vote for a future term
+
+	if r.votedFor == rv.CandidateID {
+		// sanity check that we never receive duplicate vote requests
+		// NOTE - if we resent requestVoteRPCs like in the github.io demo, this check must be removed
+		panic("How did we receive duplicate request vote?")
+	}
+
+	// We will only vote for a future term
+	if rv.Term <= r.currentTerm {
 		if r.verbose {
-			log.Println("RV from stale term")
+			log.Println("RV from prior term")
 		}
 		reply.Term = r.currentTerm
 		reply.Success = false
 		return nil
-	} else if (r.votedFor == -1) && r.TheyAreUpToDate(rv.LastLogIdx, rv.LastLogTerm) {
-		// We have not yet voted and this peer is a valid candidate (their log is up-to-date compared to ours)
-		if r.verbose {
-			log.Println("Grant vote")
-		}
-		reply.Term = r.currentTerm
-		reply.Success = true
-		r.resetTickers()
-		r.votedFor = rv.CandidateID
-		return nil
-	} else {
-		if r.votedFor == rv.CandidateID {
-			panic("How did we receive duplicate request vote?")
-		}
+	}
 
+	// We advance to the specified term
+	r.currentTerm = rv.Term
+
+	// If we have already voted, or this peer is not a valid candidate, do not grant vote
+	if (r.votedFor != -1) || !r.CandidateLooksEligible(rv.LastLogIdx, rv.LastLogTerm) {
 		if r.verbose {
 			log.Println("Do not grant vote")
 		}
 		reply.Term = r.currentTerm
 		reply.Success = false
 		return nil
+
 	}
+
+	// Otherwise, we grant vote
+	if r.verbose {
+		log.Println("Grant vote")
+	}
+	reply.Term = r.currentTerm
+	reply.Success = true
+	r.ResetTickers()
+	r.votedFor = rv.CandidateID
+	return nil
 }
 
 func containsH(s []HostID, i HostID) bool {
@@ -340,11 +352,11 @@ func containsI(s []int, i int) bool {
 }
 
 func (r RaftNode) getLastLogIndex() LogIndex {
-	return LogIndex(len(r.log.contents) - 1)
+	return LogIndex(len(r.log) - 1)
 }
 
 func (r RaftNode) getLastLogTerm() Term {
-	return Term(r.log.contents[int(r.getLastLogIndex())].term)
+	return Term(r.log[int(r.getLastLogIndex())].term)
 }
 
 // Main leader Election Procedure
@@ -353,6 +365,20 @@ func (r *RaftNode) protocol() {
 
 	for {
 		select {
+		case m := <-r.incomingChan:
+			switch m.msgType {
+			case vote:
+				if r.state == candidate {
+					if r.wonElection() {
+						r.shiftToLeader()
+					}
+				}
+			case appendEntries:
+				// TODO - update commit index or nextIndex[] and matchIndex[] based on response
+				r.executeLog()
+			default:
+				panic(fmt.Sprintf("invalid incomingMsg: %d", m))
+			}
 		case <-r.heartbeatTicker.C: // Send a heartbeat (AppendEntriesRPC without contents)
 			// We do not track the success/failure of the heartbeat
 			if r.state != leader {
@@ -381,15 +407,19 @@ func (r *RaftNode) quitter(quitTime int) {
 	}
 }
 
-func (r *RaftNode) resetTickers() {
-	r.electionTicker = *time.NewTicker(selectElectionTimeout())
-	log.Println("r.electionTicker: ", r.electionTicker)
+func (r *RaftNode) ResetTickers() time.Duration {
+	newTimeout := selectElectionTimeout() * r.electionTimeoutUnits
+	if r.verbose {
+		log.Printf("new electionTimeout: %s", newTimeout.String())
+	}
+	r.electionTicker = *time.NewTicker(newTimeout)
 	if r.state == leader {
-		r.heartbeatTicker = *time.NewTicker(heartbeatTimeout * heartbeatTimeoutUnits)
+		r.heartbeatTicker = *time.NewTicker(heartbeatTimeout * r.heartbeatTimeoutUnits)
 	} else {
 		// TODO - goofy solution, set the heartbeat very long unless we are leader
-		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout)
+		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout * r.heartbeatTimeoutUnits)
 	}
+	return newTimeout
 }
 
 func (r *RaftNode) shutdown() {

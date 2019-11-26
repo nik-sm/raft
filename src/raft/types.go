@@ -68,6 +68,7 @@ type StateMachine struct {
 	contents         []ClientData
 }
 
+// NewStateMachine constructs an empty StateMachine
 func NewStateMachine() StateMachine {
 	return StateMachine{clientSerialNums: make(map[ClientID]ClientSerialNum), contents: make([]ClientData, 0, 0)}
 }
@@ -86,15 +87,8 @@ func (s StateMachine) String() string {
 	return sb.String()
 }
 
-// Log
-type Log struct {
-	clientSerialNums map[ClientID]ClientSerialNum
-	contents         []LogEntry
-}
-
-func NewLog() Log {
-	return Log{make(map[ClientID]ClientSerialNum), make([]LogEntry, 0, 0)}
-}
+// Log holds LogEntries and
+type Log []LogEntry
 
 func (r RaftNode) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
 	mostRecent := r.stateMachine.clientSerialNums[le.clientID]
@@ -109,7 +103,7 @@ func (r RaftNode) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
 }
 
 func (l Log) getPrevResponse(le LogEntry) ClientResponse {
-	for _, entry := range l.contents {
+	for _, entry := range l {
 		if entry.clientID == le.clientID && entry.clientSerialNum == le.clientSerialNum {
 			return entry.clientResponse
 		}
@@ -121,12 +115,8 @@ func (l Log) getPrevResponse(le LogEntry) ClientResponse {
 // TODO - only this append function should be called
 // Therefore we should split the package, and only this one should be exported
 func (r *RaftNode) append(le LogEntry) {
-	r.log.logAppend(le)
+	r.log = append(r.log, le)
 	r.executeLog()
-}
-
-func (l *Log) logAppend(le LogEntry) {
-	l.contents = append(l.contents, le)
 }
 
 func (s *StateMachine) apply(le LogEntry) {
@@ -143,20 +133,18 @@ func (s *StateMachine) apply(le LogEntry) {
 
 func (l Log) String() string {
 	var sb strings.Builder
-	sb.WriteString("log.clientSerialNums:{")
-	for client, num := range l.clientSerialNums {
-		sb.WriteString(fmt.Sprintf("%d=%d", client, num))
-	}
-
-	sb.WriteString("}. log.contents:{")
-	for logIdx, logEntry := range l.contents {
-		sb.WriteString(fmt.Sprintf("%d={%s},", logIdx, logEntry.String()))
+	sb.WriteString("log contents: {")
+	for i, entry := range l {
+		sb.WriteString(fmt.Sprintf("%d={%s},", i, entry.String()))
 	}
 	sb.WriteString("}")
 	return sb.String()
 }
 
+// LogIndex is a position in the log
 type LogIndex int
+
+// LogEntry is an entry in the log
 type LogEntry struct {
 	term       Term
 	clientData ClientData
@@ -166,8 +154,11 @@ type LogEntry struct {
 	clientSerialNum ClientSerialNum // The unique number the client used to identify this data
 	clientResponse  ClientResponse  // The response that was given to this client
 }
+
+// ClientData represents an object sent by the client for storage in the StateMachine
 type ClientData string // NOTE - could make contents a state machine update
 
+// NewLogEntry is a public constructor for a LogEntry
 func NewLogEntry(t Term, cd ClientData, cid ClientID, csn ClientSerialNum, cr ClientResponse) LogEntry {
 	return LogEntry{term: t, clientData: cd, clientID: cid, clientSerialNum: csn, clientResponse: cr}
 }
@@ -176,16 +167,18 @@ func (le LogEntry) String() string {
 	return fmt.Sprintf("term: %s, clientData: %s, clientID: %d, clientSerialNum: %d, clientResponse: %s", le.term.String(), le.clientData, le.clientID, le.clientSerialNum, le.clientResponse)
 }
 
-// During AppendEntries, we need to traverse in a set order
-// Therefore, we must use a slice of entries that specify their destination index
+// LogAppend must be public because this is encoded by Gob during AppendEntriesRPC
 type LogAppend struct {
 	idx   LogIndex
 	entry LogEntry
 }
+
+// LogAppendList describes exactly where to place each of a list of LogEntries.
+// Therefore, we must use a slice of entries that specify their destination index.
+// TODO - due to the log safety properties, can we skip this and just append the list in order?
 type LogAppendList []LogAppend
 
-// RPC
-// Response after RPC from another RaftNode
+// RPCResponse carries the reply between raft nodes after an RPC
 type RPCResponse struct {
 	Term     Term
 	Success  bool
@@ -196,7 +189,7 @@ func (r RPCResponse) String() string {
 	return fmt.Sprintf("ClientResponse Term=%d, Success=%t", r.Term, r.Success)
 }
 
-// Response after RPC from client
+// ClientResponse carries the reply from a raft node to a client after RPC
 type ClientResponse struct {
 	Success bool // if success == false, then client should retry using 'leader'
 	Leader  HostID
@@ -206,7 +199,19 @@ func (c ClientResponse) String() string {
 	return fmt.Sprintf("ClientResponse Success=%t, Leader=%d", c.Success, c.Leader)
 }
 
-// RaftNode
+type msgType int
+
+type incomingMsg struct {
+	msgType  msgType
+	response RPCResponse
+}
+
+const (
+	appendEntries msgType = iota
+	vote          msgType = iota
+)
+
+// RaftNode describes a participant in the Raft protocol
 type RaftNode struct {
 	id    HostID        // id of this node
 	state raftNodeState // follower, leader, or candidate
@@ -228,14 +233,17 @@ type RaftNode struct {
 	matchIndex map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
 
 	// Convenience variables
-	hosts           HostMap         // look up table of peer id, ip, port, hostname for other raft nodes
-	clients         ClientMap       // look up table of peer id, ip, port, hostname for clients
-	electionTicker  time.Ticker     // timeouts start each election
-	heartbeatTicker time.Ticker     // Leader-only ticker for sending heartbeats during idle periods
-	giveUpTimeout   time.Duration   // during client data storage interaction, time before giving up and replying failure
-	votes           electionResults // temp storage for election results
-	quitChan        chan bool       // for cleaning up spawned goroutines
-	verbose         bool
+	incomingChan          chan incomingMsg // for collecting and reacting to async RPC responses
+	hosts                 HostMap          // look up table of peer id, ip, port, hostname for other raft nodes
+	clients               ClientMap        // look up table of peer id, ip, port, hostname for clients
+	electionTicker        time.Ticker      // timeouts start each election
+	electionTimeoutUnits  time.Duration    // units to use for election timeout
+	heartbeatTicker       time.Ticker      // Leader-only ticker for sending heartbeats during idle periods
+	heartbeatTimeoutUnits time.Duration    // units to use for heartbeat timeout
+	giveUpTimeout         time.Duration    // during client data storage interaction, time before giving up and replying failure
+	votes                 electionResults  // temp storage for election results
+	quitChan              chan bool        // for cleaning up spawned goroutines
+	verbose               bool
 }
 
 func (r RaftNode) String() string {
@@ -243,13 +251,14 @@ func (r RaftNode) String() string {
 		r.id, r.state, r.currentTerm, r.votedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.verbose, r.log.String(), r.stateMachine.String())
 }
 
+// NewRaftNode is a public constructor for RaftNode
 func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool) *RaftNode {
 	// Initialize Log
-	initialLog := NewLog()
-	initialLog.logAppend(LogEntry{term: Term(-1),
-		clientData:      ClientData("LOG_START"),
-		clientID:        ClientID(-1),
-		clientSerialNum: ClientSerialNum(-1)})
+	initialLog := []LogEntry{
+		LogEntry{term: Term(-1),
+			clientData:      ClientData("LOG_START"),
+			clientID:        ClientID(-1),
+			clientSerialNum: ClientSerialNum(-1)}}
 
 	// Initialize StateMachine
 	initialSM := NewStateMachine()
@@ -271,14 +280,16 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 		nextIndex:  make(map[HostID]LogIndex),
 		matchIndex: make(map[HostID]LogIndex),
 
-		hosts:           hosts,
-		clients:         clients,
-		electionTicker:  *time.NewTicker(selectElectionTimeout()),
-		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout),
-		giveUpTimeout:   2 * heartbeatTimeout * heartbeatTimeoutUnits, // TODO - is this a reasonable timeout?
-		votes:           make(electionResults),
-		quitChan:        quitChan,
-		verbose:         verbose}
+		hosts:                 hosts,
+		clients:               clients,
+		electionTicker:        *time.NewTicker(selectElectionTimeout()),
+		electionTimeoutUnits:  time.Millisecond,
+		heartbeatTicker:       *time.NewTicker(fakeHeartbeatTimeout),
+		heartbeatTimeoutUnits: time.Millisecond,
+		giveUpTimeout:         2 * heartbeatTimeout * time.Second, // TODO - is this a reasonable timeout?
+		votes:                 make(electionResults),
+		quitChan:              quitChan,
+		verbose:               verbose}
 
 	// Initialize State Machine
 	for clientID := range clients {
@@ -286,50 +297,6 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 	}
 	r.stateMachine.contents = append(r.stateMachine.contents, "STATE_MACHINE_START")
 	return &r
-}
-
-func NewRaftNodeSpecial(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool, term Term, entries []LogEntry) RaftNode {
-	// Initialize StateMachine
-	initialSM := NewStateMachine()
-
-	// Initialize log with provided list of log entries
-	initialLog := NewLog()
-	for _, entry := range entries {
-		initialLog.logAppend(entry)
-	}
-
-	// TODO - make a NewRaftNode constructor
-	r := RaftNode{
-		id:    id,
-		state: follower,
-
-		currentTerm:  0,
-		votedFor:     -1,
-		log:          initialLog,
-		stateMachine: initialSM,
-
-		commitIndex:   0,
-		lastApplied:   0,
-		currentLeader: -1, // NOTE - notice that client needs to validate the "currentLeader" response that they get during a redirection
-
-		nextIndex:  make(map[HostID]LogIndex),
-		matchIndex: make(map[HostID]LogIndex),
-
-		hosts:           hosts,
-		clients:         clients,
-		electionTicker:  *time.NewTicker(selectElectionTimeout()),
-		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout),
-		giveUpTimeout:   2 * heartbeatTimeout * heartbeatTimeoutUnits, // TODO - is this a reasonable timeout?
-		votes:           make(electionResults),
-		quitChan:        quitChan,
-		verbose:         verbose}
-
-	// Initialize State Machine
-	for clientID := range clients {
-		r.stateMachine.clientSerialNums[clientID] = -1
-	}
-	r.stateMachine.contents = append(r.stateMachine.contents, "STATE_MACHINE_START")
-	return r
 }
 
 func (s raftNodeState) String() string {

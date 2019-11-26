@@ -1,77 +1,347 @@
-package raft_test
+package raft
 
 import (
 	"fmt"
-	"raft"
+	"strings"
+	"time"
 )
 
-type term = raft.Term
-
-// Prepare a test, specifying:
-// - term, lastLogTerm, and lastLogIdx of candidate
-// - term, lastLogTerm, and number of log entries for voter
-// Notice that we need to populate the voter's log with dummy entries
-func setupVoteTests(
-	vTerm term, vLastLogTerm term, vNumLogEntries int,
-	cTerm term, cLastLogTerm term, cLastLogIdx raft.LogIndex) raft.RPCResponse {
-
-	// Build list of log entries of specified length
-	entries := make([]raft.LogEntry, 0, 0)
-	for i := 0; i < vNumLogEntries; i++ {
-		entries = append(entries, raft.NewLogEntry(
-			vLastLogTerm,                        // term
-			"",                                  // clientData
-			raft.ClientID(0),                    // clientID
-			raft.ClientSerialNum(0),             // clientSerialNum
-			raft.ClientResponse{Success: true})) // clientResponse
+// Prepare a test, specifying term, lastLogTerm, and lastLogIdx of voter
+func mockRaftNode(vTerm Term, vLastLogTerm Term, vLastLogIdx int) RaftNode {
+	// Build dummy log for voter
+	log := make([]LogEntry, 0, 0)
+	for i := 0; i <= vLastLogIdx; i++ {
+		log = append(log, NewLogEntry(
+			vLastLogTerm,                   // Term
+			"",                             // clientData
+			ClientID(0),                    // clientID
+			ClientSerialNum(0),             // clientSerialNum
+			ClientResponse{Success: true})) // clientResponse
 	}
 
 	// Construct voter node
-	voter := raft.NewRaftNodeSpecial(
-		raft.HostID(0),
-		make(raft.HostMap),   // Empty hosts map
-		make(raft.ClientMap), // Empty clients map
-		nil,                  // Empty 'quit' channel
-		vTerm,                // Voter starting term
-		entries)
+	voter := *NewRaftNode(
+		HostID(0),
+		make(HostMap),   // Empty hosts map
+		make(ClientMap), // Empty clients map
+		nil)             // Empty 'quit' channel
 
-	// Sanity check the ballot info we will use
-	if !voter.TheyAreUpToDate(cLastLogIdx, cLastLogTerm) {
-		fmt.Println("Test setup turned out to be invalid")
+	// Set voter attributes as specified
+	voter.currentTerm = vTerm
+	voter.log = log
+	voter.verbose = false
+
+	return voter
+}
+
+// Ticker tests
+
+func ExampleRaftNode_ResetTickers_notTooFast() {
+	r := mockRaftNode(Term(0), Term(0), 0)
+	r.electionTimeoutUnits = time.Millisecond
+
+	var result strings.Builder
+	result.WriteString("begin.")
+	nIteration := 5
+	for i := 0; i < nIteration; i++ {
+		var newTimeout time.Duration = r.resetTickers()
+		var half time.Duration = newTimeout / 2
+
+	Loop:
+		for {
+			select {
+			case <-time.After(half): // should always trigger first
+				break Loop
+			case <-r.electionTicker.C:
+				result.WriteString("bad.")
+				break Loop
+			}
+		}
 	}
 
-	// Prepare inputs for the RPC
-	args := raft.RequestVoteStruct{T: cTerm,
-		CandidateID: 1,
-		LastLogIdx:  cLastLogIdx,
-		LastLogTerm: cLastLogTerm}
-	reply := raft.RPCResponse{}
+	result.WriteString("end")
+	fmt.Println(result.String())
+	// Output: begin.end
+}
 
-	// Cast the Vote, and check for errors
+func ExampleRaftNode_ResetTickers_notTooSlow() {
+	r := mockRaftNode(Term(0), Term(0), 0)
+	r.electionTimeoutUnits = time.Millisecond
+
+	var result strings.Builder
+	result.WriteString("begin.")
+	nIteration := 5
+	for i := 0; i < nIteration; i++ {
+		var newTimeout time.Duration = r.resetTickers()
+		var half time.Duration = newTimeout / 2
+
+	Loop:
+		for {
+			select {
+			case <-r.electionTicker.C: // should always trigger first
+				break Loop
+			case <-time.After(newTimeout + half):
+				result.WriteString("bad.")
+				break Loop
+			}
+		}
+	}
+
+	result.WriteString("end")
+	fmt.Println(result.String())
+	// Output: begin.end
+}
+
+// Log eligibility tests
+
+func ExampleRaftNode_CandidateLooksEligible_futureLogTermSucceeds() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	candidateLastLogTerm := Term(8)
+	candidateLastLogIdx := LogIndex(1)
+
+	result := voter.CandidateLooksEligible(candidateLastLogIdx, candidateLastLogTerm)
+	fmt.Println(result)
+	// Output: true
+}
+
+func ExampleRaftNode_CandidateLooksEligible_futureLogIdxSucceeds() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	candidateLastLogTerm := Term(4)
+	candidateLastLogIdx := LogIndex(8)
+
+	result := voter.CandidateLooksEligible(candidateLastLogIdx, candidateLastLogTerm)
+	fmt.Println(result)
+	// Output: true
+}
+
+func ExampleRaftNode_CandidateLooksEligible_sameLogTermLogIdxSucceeds() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	candidateLastLogTerm := Term(4)
+	candidateLastLogIdx := LogIndex(3)
+
+	result := voter.CandidateLooksEligible(candidateLastLogIdx, candidateLastLogTerm)
+	fmt.Println(result)
+	// Output: true
+}
+
+func ExampleRaftNode_CandidateLooksEligible_badLogTermFails() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	candidateLastLogTerm := Term(1)
+	candidateLastLogIdx := LogIndex(9)
+
+	result := voter.CandidateLooksEligible(candidateLastLogIdx, candidateLastLogTerm)
+	fmt.Println(result)
+	// Output: false
+}
+
+func ExampleRaftNode_CandidateLooksEligible_badLogIdxFails() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	candidateLastLogTerm := Term(4)
+	candidateLastLogIdx := LogIndex(2)
+
+	result := voter.CandidateLooksEligible(candidateLastLogIdx, candidateLastLogTerm)
+	fmt.Println(result)
+	// Output: false
+}
+
+// Vote tests
+
+func ExampleRaftNode_Vote_futureTermSucceeds() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	// Prepare inputs for the RPC
+	args := RequestVoteStruct{
+		CandidateID: 1,
+		Term:        8,
+		LastLogTerm: 4,
+		LastLogIdx:  3}
+	reply := RPCResponse{}
+
+	// Cast Vote, and check for errors
 	err := voter.Vote(args, &reply)
 	if err != nil {
 		fmt.Println("Error occurred during voting")
 	}
 
-	return reply
+	fmt.Printf("reply.Success=%t, reply.Term=%d", reply.Success, reply.Term)
+	// Output: reply.Success=true, reply.Term=8
 }
 
-// TODO - resume here
-func ExampleVote() {
-	reply := setupVoteTests(
-		term(5),          // voter's term
-		term(4),          // voter's lastLogTerm
-		3,                // voter's lastLogIndex
-		term(5),          // candidate's term
-		term(4),          // candidate's lastLogTerm
-		raft.LogIndex(3)) // candidate's lastLogIndex
+func ExampleRaftNode_Vote_sameTermFails() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	// Prepare inputs for the RPC
+	args := RequestVoteStruct{
+		CandidateID: 1,
+		Term:        5,
+		LastLogTerm: 4,
+		LastLogIdx:  3}
+	reply := RPCResponse{}
+
+	// Cast Vote, and check for errors
+	err := voter.Vote(args, &reply)
+	if err != nil {
+		fmt.Println("Error occurred during voting")
+	}
 
 	fmt.Printf("reply.Success=%t, reply.Term=%d", reply.Success, reply.Term)
-	// Output: reply.Success=true, reply.Term=5
+	// Output: reply.Success=false, reply.Term=5
 }
 
-func ExampleVote_logOutdated() {
+func ExampleRaftNode_Vote_prevTermFails() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
 
+	// Prepare inputs for the RPC
+	args := RequestVoteStruct{
+		CandidateID: 1,
+		Term:        4,
+		LastLogTerm: 4,
+		LastLogIdx:  3}
+	reply := RPCResponse{}
+
+	// Cast Vote, and check for errors
+	err := voter.Vote(args, &reply)
+	if err != nil {
+		fmt.Println("Error occurred during voting")
+	}
+
+	fmt.Printf("reply.Success=%t, reply.Term=%d", reply.Success, reply.Term)
+	// Output: reply.Success=false, reply.Term=5
 }
 
-//func ExampleVote_termOutdated() {}
+func ExampleRaftNode_Vote_futureLogTermSucceeds() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	// Prepare inputs for the RPC
+	args := RequestVoteStruct{
+		CandidateID: 1,
+		Term:        9,
+		LastLogTerm: 8,
+		LastLogIdx:  3}
+	reply := RPCResponse{}
+
+	// Cast Vote, and check for errors
+	err := voter.Vote(args, &reply)
+	if err != nil {
+		fmt.Println("Error occurred during voting")
+	}
+
+	fmt.Printf("reply.Success=%t, reply.Term=%d", reply.Success, reply.Term)
+	// Output: reply.Success=true, reply.Term=9
+}
+
+func ExampleRaftNode_Vote_futureLogIdxSucceeds() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	// Prepare inputs for the RPC
+	args := RequestVoteStruct{
+		CandidateID: 1,
+		Term:        9,
+		LastLogTerm: 4,
+		LastLogIdx:  8}
+	reply := RPCResponse{}
+
+	// Cast Vote, and check for errors
+	err := voter.Vote(args, &reply)
+	if err != nil {
+		fmt.Println("Error occurred during voting")
+	}
+
+	fmt.Printf("reply.Success=%t, reply.Term=%d", reply.Success, reply.Term)
+	// Output: reply.Success=true, reply.Term=9
+}
+
+func ExampleRaftNode_Vote_badLogTermFails() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	// Prepare inputs for the RPC
+	args := RequestVoteStruct{
+		CandidateID: 1,
+		Term:        8,
+		LastLogTerm: 3,
+		LastLogIdx:  3}
+	reply := RPCResponse{}
+
+	// Cast Vote, and check for errors
+	err := voter.Vote(args, &reply)
+	if err != nil {
+		fmt.Println("Error occurred during voting")
+	}
+
+	fmt.Printf("reply.Success=%t, reply.Term=%d", reply.Success, reply.Term)
+	// Output: reply.Success=false, reply.Term=8
+}
+
+func ExampleRaftNode_Vote_badLogIdxFails() {
+	// Mock voter
+	voter := mockRaftNode(
+		Term(5), // voter's Term
+		Term(4), // voter's lastLogTerm
+		3)       // voter's lastLogIndex
+
+	// Prepare inputs for the RPC
+	args := RequestVoteStruct{
+		CandidateID: 1,
+		Term:        8,
+		LastLogTerm: 4,
+		LastLogIdx:  2}
+	reply := RPCResponse{}
+
+	// Cast Vote, and check for errors
+	err := voter.Vote(args, &reply)
+	if err != nil {
+		fmt.Println("Error occurred during voting")
+	}
+
+	fmt.Printf("reply.Success=%t, reply.Term=%d", reply.Success, reply.Term)
+	// Output: reply.Success=false, reply.Term=8
+}

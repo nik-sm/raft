@@ -11,7 +11,7 @@ services:
       context: .
     networks:
       - raft-network
-    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
+    command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-agent-1: 
     image: raft-image
@@ -23,7 +23,7 @@ services:
       context: .
     networks:
       - raft-network
-    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
+    command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-agent-2: 
     image: raft-image
@@ -35,7 +35,7 @@ services:
       context: .
     networks:
       - raft-network
-    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
+    command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-client-0:
     image: raft-image
@@ -48,7 +48,7 @@ services:
     networks:
       - raft-network
     entrypoint: "client"
-    command: "-hostfile=hostfile.json -data=datafile.txt -v=${PRJ2_VERBOSE}"
+    command: "-hostfile=hostfile.json -data=datafile.txt -v=${RAFT_VERBOSE}"
       
 
 networks:
