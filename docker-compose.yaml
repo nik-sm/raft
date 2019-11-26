@@ -25,17 +25,17 @@ services:
       - raft-network
     command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
 
-    #  raft-agent-2: 
-    #    image: raft-image
-    #    container_name: r2
-    #    restart: "no"
-    #    environment:
-    #      - CONTAINER_NAME=r2
-    #    build:
-    #      context: .
-    #    networks:
-    #      - raft-network
-    #    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
+  raft-agent-2: 
+    image: raft-image
+    container_name: r2
+    restart: "no"
+    environment:
+      - CONTAINER_NAME=r2
+    build:
+      context: .
+    networks:
+      - raft-network
+    command: "-h=hostfile.json -t=${PRJ2_TEST_CASE} -d=${PRJ2_DURATION} -v=${PRJ2_VERBOSE}"
 
   raft-client-0:
     image: raft-image

@@ -16,6 +16,7 @@ var hostfile string
 var datafile string
 var recvPort string
 
+// ClientNode represents a client who stores data in the raft cluster
 type ClientNode struct {
 	retryTimeout  time.Duration
 	hosts         raft.HostMap
@@ -32,7 +33,7 @@ func (c *ClientNode) readDataFile() {
 	log.Println("client read data file")
 	contents, err := ioutil.ReadFile(c.datafile)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	lines := strings.Split(string(contents), "\n")
 	for line := range lines {
@@ -65,10 +66,9 @@ func (c *ClientNode) sendDataToHost(data raft.ClientData, host raft.HostID) (raf
 		if err != nil {
 			log.Print("Warning: client send data:", err)
 			return raft.HostID(-1), false
-		} else {
-			log.Printf("Received response: %s\n", response)
-			return response.Leader, response.Success
 		}
+		log.Printf("Received response: %s\n", response)
+		return response.Leader, response.Success
 	case <-time.After(c.retryTimeout):
 		log.Println("Client timeout")
 		return raft.HostID(-1), false

@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"errors"
 	"flag"
 	"log"
 	"math"
@@ -10,7 +9,6 @@ import (
 )
 
 var hostfile string
-var testScenario int
 var recvPort int
 var duration int
 var verbose bool
@@ -40,16 +38,20 @@ func haveMajority(votes map[HostID]bool) bool {
 func (r RaftNode) persistState() {
 	// TODO - save state using Gob (?) for easy recover
 	// Save: currentTerm, votedFor, log
-	return
+	//panic("TODO - persistState")
 }
 
 func (r RaftNode) recoverFromDisk() {
 	// TODO - right at the restart of the node, check the standard place for
 	// a persisted state object. If exists, apply it, otherwise, just startup normally
+	//panic("TODO - recoverFromDisk")
 }
 
 // NOTE - important that for all the shiftTo...() functions, we must first set our state variable
 func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
+	if r.verbose {
+		log.Println("SHIFT TO FOLLOWER")
+	}
 	r.state = follower
 	r.resetTickers()
 	r.currentTerm = t
@@ -60,29 +62,40 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	return
 }
 
+// NOTE - We only become leader by doing shiftToCandidate() and voting for ourself
+// Therefore, we know who we voted for.
+// We have already adjusted our currentTerm (during shiftToCandidare())
 func (r *RaftNode) shiftToLeader() {
+	if r.verbose {
+		log.Println("SHIFT TO LEADER")
+	}
 	r.state = leader
 	r.currentLeader = r.id
+	r.votedFor = r.id
 	r.resetTickers()
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
 	r.matchIndex = make(map[HostID]LogIndex)
 	for peerID := range r.hosts {
-		r.nextIndex[peerID] = r.lastApplied + 1
-		r.matchIndex[peerID] = 0
+		r.nextIndex[peerID] = r.getLastLogIndex() + 1
+		r.matchIndex[peerID] = LogIndex(0)
 	}
 
-	log.Fatal("TODO")
+	// TODO - other fields that may need to be set here:
 	// r.currentTerm
 	// r.votedFor
 	return
 }
 
 func (r *RaftNode) shiftToCandidate() {
+	if r.verbose {
+		log.Println("SHIFT TO CANDIDATE")
+	}
 	r.state = candidate
 	r.resetTickers()
 	r.currentTerm++
-	go r.MultiRequestVoteRPC()
+	r.votedFor = r.id
+	go r.multiRequestVoteRPC()
 	return
 }
 
@@ -95,8 +108,9 @@ func (r *RaftNode) shiftToCandidate() {
 func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) error {
 	// NOTE - if we do not yet know leader, client will see reply.leader = -1.
 	// They should wait before recontact, and may recontact us or another random node
+	defer r.executeLog()
 	reply.Leader = r.currentLeader
-	reply.success = false // by default, assume we will fail
+	reply.Success = false // by default, assume we will fail
 
 	if r.state != leader {
 		return nil
@@ -125,9 +139,8 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 		case <-time.After(r.giveUpTimeout): // leader gives up and reports failure to client
 			break
 		default:
-			majorityStored = r.MultiAppendEntriesRPC([]LogEntry{entry})
+			majorityStored = r.multiAppendEntriesRPC([]LogEntry{entry})
 			if majorityStored {
-				r.executeLog()
 				reply.Success = true
 				break
 			}
@@ -157,18 +170,51 @@ func (r *RaftNode) applyNewLogEntries(updates LogAppendList) LogIndex {
 	if r.verbose {
 		log.Printf("log after: %s", r.log.String())
 	}
-	return LogIndex(len(r.log.contents) - 1)
+	return r.getLastLogIndex()
+}
+
+// After sending updates to other nodes, we try to advance our commitIndex
+// At the end, we try to execute log
+func (r *RaftNode) updateCommitIndex() {
+	// If there exists an N such that:
+	//   1) N > commitIndex,
+	//   2) a majority of matchIndex[i] >= N, and
+	//   3) log[N].term == currentTerm
+	// Then:
+	//   set commitIndex = N
+	defer r.executeLog()
+	for n := r.commitIndex + 1; n <= r.getLastLogIndex(); n++ {
+		if r.log.contents[n].term != r.currentTerm {
+			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.log.contents[n].String())
+			continue
+		}
+		peersAtThisLevel := make(map[HostID]bool)
+		for hostID := range r.hosts {
+			if hostID == r.id {
+				peersAtThisLevel[hostID] = true
+			} else {
+				peersAtThisLevel[hostID] = r.matchIndex[hostID] >= n
+			}
+		}
+		if haveMajority(peersAtThisLevel) {
+			r.commitIndex = n
+		}
+	}
 }
 
 // Based on our commit index, apply any log entries that are ready for commit
 func (r *RaftNode) executeLog() {
+	// TODO - this function should be idempotent and safe to apply often
 	// TODO - need some stateMachine variable that represents a set of applied log entries
 	// TODO - update commit index
-	log.Fatal("TODO")
+	for r.commitIndex > r.lastApplied {
+		r.lastApplied++
+		r.stateMachine.apply(r.log.contents[r.lastApplied])
+	}
 }
 
+// AppendEntries is called by RPC from the leader to modify the log of a follower.
 // TODO - some amount of duplicated logic in AppendEntries() and Vote()
-// Handles an incoming AppendEntriesRPC
 // Returns false if entries were rejected, or true if accepted
 func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) error {
 	defer r.persistState()
@@ -199,6 +245,7 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) err
 
 		// Now we need to decide how to set our local commit index
 		if ae.LeaderCommit > r.commitIndex {
+			// set commitIndex = min(leaderCommit, index of last new entry)
 			if lastIndex < ae.LeaderCommit {
 				// we still need more entries from the leader, but we can commit what we have so far
 				r.commitIndex = lastIndex
@@ -215,8 +262,8 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) err
 // Returns true if the incoming RequestVote shows that the peer is at least as up-to-date as we are
 // See paper section 5.4
 // TODO - can this be simplified?
-func (r RaftNode) theyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Term) bool {
-	ourLastLogIdx := len(r.log.contents) - 1
+func (r RaftNode) TheyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Term) bool {
+	ourLastLogIdx := r.getLastLogIndex()
 	ourLastLogEntry := r.log.contents[ourLastLogIdx]
 	if r.verbose {
 		log.Printf("Comparing our lastLogEntry: %s, with theirs: (term %d, idx %d)", ourLastLogEntry.String(), theirLastLogTerm, theirLastLogIdx)
@@ -224,7 +271,7 @@ func (r RaftNode) theyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Ter
 
 	if int(ourLastLogEntry.term) > int(theirLastLogTerm) {
 		return false
-	} else if ourLastLogEntry.term == theirLastLogTerm && ourLastLogIdx > int(theirLastLogIdx) {
+	} else if ourLastLogEntry.term == theirLastLogTerm && int(ourLastLogIdx) > int(theirLastLogIdx) {
 		return false
 	}
 	return true
@@ -232,28 +279,45 @@ func (r RaftNode) theyAreUpToDate(theirLastLogIdx LogIndex, theirLastLogTerm Ter
 
 // TODO - need to decide where to compare lastApplied to commitIndex, and apply log entries to our local state machine
 
+// Vote is called by RPC from a candidate
+// Observations from simulation:
+//		1) If we get a requestVoteRPC from a future term, we immediately jump to that term and send our vote
+//    2) If we are already collecting votes for the next election, and simultaneously get a request from another node to vote for them, we do NOT give them our vote
+//			 (we've already voted for ourselves!)
+//    3) if we've been offline, and wakeup and try to get votes: we get rejections, that also tell us the new term, and we immediately jump to that term as a follower
 func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
+	if r.verbose {
+		log.Printf("Vote(). RequestVoteStruct: %s. My node: %s", rv.String(), r.String())
+	}
 	r.persistState()
-	if rv.T < r.currentTerm {
+	if rv.T <= r.currentTerm { // NOTE - we only vote for a future term
 		if r.verbose {
 			log.Println("RV from stale term")
 		}
 		reply.Term = r.currentTerm
 		reply.Success = false
-		// TODO - should we also resetElectionTicker() here? We want progress, and a failed vote does not help progress, so probably not...
 		return nil
-	} else if (r.votedFor == -1 || r.votedFor == rv.CandidateID) && r.theyAreUpToDate(rv.LastLogIdx, rv.LastLogTerm) {
+	} else if (r.votedFor == -1) && r.TheyAreUpToDate(rv.LastLogIdx, rv.LastLogTerm) {
+		// We have not yet voted and this peer is a valid candidate (their log is up-to-date compared to ours)
 		if r.verbose {
 			log.Println("Grant vote")
 		}
 		reply.Term = r.currentTerm
 		reply.Success = true
-		// TODO - should change some local state variables, like term number?
 		r.resetTickers()
+		r.votedFor = rv.CandidateID
 		return nil
 	} else {
-		log.Fatal("how did we get here?")
-		return errors.New("how did we get here")
+		if r.votedFor == rv.CandidateID {
+			panic("How did we receive duplicate request vote?")
+		}
+
+		if r.verbose {
+			log.Println("Do not grant vote")
+		}
+		reply.Term = r.currentTerm
+		reply.Success = false
+		return nil
 	}
 }
 
@@ -275,12 +339,12 @@ func containsI(s []int, i int) bool {
 	return false
 }
 
-func (r *RaftNode) getPrevLogIndex() LogIndex {
+func (r RaftNode) getLastLogIndex() LogIndex {
 	return LogIndex(len(r.log.contents) - 1)
 }
 
-func (r *RaftNode) getPrevLogTerm() Term {
-	return Term(r.log.contents[int(r.getPrevLogIndex())].term)
+func (r RaftNode) getLastLogTerm() Term {
+	return Term(r.log.contents[int(r.getLastLogIndex())].term)
 }
 
 // Main leader Election Procedure
@@ -291,7 +355,11 @@ func (r *RaftNode) protocol() {
 		select {
 		case <-r.heartbeatTicker.C: // Send a heartbeat (AppendEntriesRPC without contents)
 			// We do not track the success/failure of the heartbeat
-			r.MultiAppendEntriesRPC(make([]LogEntry, 0, 0))
+			if r.state != leader {
+				panic("heartbeat ticker triggered on non-leader node")
+			}
+			r.heartbeatAppendEntriesRPC()
+			r.updateCommitIndex()
 		case <-r.electionTicker.C: // Periodically time out and start a new election
 			if r.verbose {
 				log.Println("TIMED OUT!")
@@ -313,27 +381,11 @@ func (r *RaftNode) quitter(quitTime int) {
 	}
 }
 
-func getKillSwitch(nodeID HostID, testScenario int) bool {
-	var killNodes []HostID
-	if testScenario == 3 {
-		killNodes = []HostID{1}
-	} else if testScenario == 4 {
-		killNodes = []HostID{1, 2}
-	} else if testScenario == 5 {
-		killNodes = []HostID{1, 2, 3}
-	}
-
-	if len(killNodes) != 0 && containsH(killNodes, nodeID) {
-		log.Println("TEST CASE: This node will die upon becoming leader")
-		return true
-	}
-	return false
-}
-
 func (r *RaftNode) resetTickers() {
 	r.electionTicker = *time.NewTicker(selectElectionTimeout())
+	log.Println("r.electionTicker: ", r.electionTicker)
 	if r.state == leader {
-		r.heartbeatTicker = *time.NewTicker(heartbeatTimeout)
+		r.heartbeatTicker = *time.NewTicker(heartbeatTimeout * heartbeatTimeoutUnits)
 	} else {
 		// TODO - goofy solution, set the heartbeat very long unless we are leader
 		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout)
@@ -347,7 +399,6 @@ func (r *RaftNode) shutdown() {
 
 func init() {
 	flag.StringVar(&hostfile, "h", "hostfile.json", "name of hostfile")
-	flag.IntVar(&testScenario, "t", 0, "test scenario to run")
 	flag.IntVar(&duration, "d", 30, "time until node shutdown")
 	flag.BoolVar(&verbose, "v", false, "verbose output")
 
@@ -355,58 +406,16 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
+// Raft is the entrypoint function for the raft replicated state machine protocol
 func Raft() {
 	flag.Parse()
 	hosts := make(HostMap)
 	clients := make(ClientMap)
-	if !containsI([]int{1, 2, 3, 4, 5}, testScenario) {
-		log.Fatalf("invalid test scenario: %d", testScenario)
-	} else {
-		log.Printf("TEST SCENARIO: %d", testScenario)
-	}
 	quitChan := make(chan bool)
 
-	// Initialize Log
-	initialLog := NewLog()
-	initialLog.append(LogEntry{term: Term(-1),
-		clientData:      ClientData("LOG_START"),
-		clientID:        ClientID(-1),
-		clientSerialNum: ClientSerialNum(-1)})
+	id := HostID(ResolveAllPeers(hosts, clients, hostfile, true))
 
-	// Initialize StateMachine
-	initialSM := NewStateMachine()
-
-	// TODO - make a NewRaftNode constructor
-	r := RaftNode{
-		id:    HostID(ResolveAllPeers(hosts, clients, hostfile, true)),
-		state: follower,
-
-		currentTerm:  0,
-		votedFor:     -1,
-		log:          initialLog,
-		stateMachine: initialSM,
-
-		commitIndex:   0,
-		lastApplied:   0,
-		currentLeader: -1, // NOTE - notice that client needs to validate the "currentLeader" response that they get during a redirection
-
-		nextIndex:  make(map[HostID]LogIndex),
-		matchIndex: make(map[HostID]LogIndex),
-
-		hosts:           hosts,
-		clients:         clients,
-		electionTicker:  *time.NewTicker(selectElectionTimeout()),
-		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout),
-		votes:           make(electionResults),
-		killSwitch:      false,
-		quitChan:        quitChan,
-		verbose:         verbose}
-
-	// Initialize State Machine
-	for clientID, _ := range clients {
-		r.stateMachine.clientSerialNums[clientID] = -1
-	}
-	r.stateMachine.contents = append(r.stateMachine.contents, "STATE_MACHINE_START")
+	r := NewRaftNode(id, hosts, clients, quitChan)
 
 	log.Printf("RaftNode: %s", r.String())
 

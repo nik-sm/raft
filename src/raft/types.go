@@ -10,20 +10,25 @@ import (
 
 // TODO - could reduce usages of map and use slices instead where possible
 
+// ClientID is the integer ID of a client node
 type ClientID int // TODO - if we only have a single client, maybe this can be simplified to "type client peer"
+
+// HostID is the integer ID of a raft host node
 type HostID int
-type Term HostID
+
+// Term is a monotonically increasing integer identifying the current leader's term
+type Term int
 
 func (t Term) String() string {
 	return fmt.Sprintf("%d", t)
 }
 
-type RaftNodeState int
+type raftNodeState int
 
 const (
-	follower  RaftNodeState = iota
-	leader    RaftNodeState = iota
-	candidate RaftNodeState = iota
+	follower  raftNodeState = iota
+	leader    raftNodeState = iota
+	candidate raftNodeState = iota
 )
 
 // Peer represents the network information for a RaftNode
@@ -37,7 +42,10 @@ func (p peer) String() string {
 	return fmt.Sprintf("Peer IP: %s, Port: %d, Hostname: %s", p.IP.String(), p.Port, p.Hostname)
 }
 
+// HostMap associates a raft host's ID with their net info
 type HostMap map[HostID]peer
+
+// ClientMap associates a raft client's ID with their net info
 type ClientMap map[ClientID]peer
 
 type hostStringMap map[HostID]string
@@ -54,7 +62,7 @@ func (e electionResults) String() string {
 	return sb.String()
 }
 
-// State Machine
+// StateMachine is the core data structure whose updates we want to be resilient
 type StateMachine struct {
 	clientSerialNums map[ClientID]ClientSerialNum // The most recently executed serial number for each client
 	contents         []ClientData
@@ -96,9 +104,8 @@ func (r RaftNode) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
 		// and it will exist in our log
 		// NOTE - if we do log compaction, we might have thrown away the previous log entry
 		return true, r.log.getPrevResponse(le)
-	} else {
-		return false, ClientResponse{}
 	}
+	return false, ClientResponse{}
 }
 
 func (l Log) getPrevResponse(le LogEntry) ClientResponse {
@@ -107,26 +114,28 @@ func (l Log) getPrevResponse(le LogEntry) ClientResponse {
 			return entry.clientResponse
 		}
 	}
-	log.Fatal("Should have had previous response!")
+	panic("Should have had previous response!")
 	return ClientResponse{}
 }
 
 // TODO - only this append function should be called
 // Therefore we should split the package, and only this one should be exported
 func (r *RaftNode) append(le LogEntry) {
-	r.log.append(le)
-	r.stateMachine.append(le)
+	r.log.logAppend(le)
+	r.executeLog()
 }
 
-func (l *Log) append(le LogEntry) {
+func (l *Log) logAppend(le LogEntry) {
 	l.contents = append(l.contents, le)
 }
 
-func (s *StateMachine) append(le LogEntry) {
+func (s *StateMachine) apply(le LogEntry) {
 	mostRecentSeen := s.clientSerialNums[le.clientID]
-	if int(mostRecentSeen) < int(le.clientSerialNum) {
-		s.clientSerialNums[le.clientID] = le.clientSerialNum
+	if int(mostRecentSeen) >= int(le.clientSerialNum) {
+		log.Printf("Log entry is stale/duplicated, no change to State Machine: %s", le.String())
+		return
 	}
+	s.clientSerialNums[le.clientID] = le.clientSerialNum
 	// NOTE - if we used a more sophisticated type for ClientData,
 	// this is where we would need logic to apply the data to the State Machine
 	s.contents = append(s.contents, le.clientData)
@@ -134,15 +143,16 @@ func (s *StateMachine) append(le LogEntry) {
 
 func (l Log) String() string {
 	var sb strings.Builder
-	sb.WriteString("log.clientSerialNums:\n")
+	sb.WriteString("log.clientSerialNums:{")
 	for client, num := range l.clientSerialNums {
 		sb.WriteString(fmt.Sprintf("%d=%d", client, num))
 	}
 
-	sb.WriteString("\nlog.contents:\n")
+	sb.WriteString("}. log.contents:{")
 	for logIdx, logEntry := range l.contents {
 		sb.WriteString(fmt.Sprintf("%d={%s},", logIdx, logEntry.String()))
 	}
+	sb.WriteString("}")
 	return sb.String()
 }
 
@@ -157,6 +167,10 @@ type LogEntry struct {
 	clientResponse  ClientResponse  // The response that was given to this client
 }
 type ClientData string // NOTE - could make contents a state machine update
+
+func NewLogEntry(t Term, cd ClientData, cid ClientID, csn ClientSerialNum, cr ClientResponse) LogEntry {
+	return LogEntry{term: t, clientData: cd, clientID: cid, clientSerialNum: csn, clientResponse: cr}
+}
 
 func (le LogEntry) String() string {
 	return fmt.Sprintf("term: %s, clientData: %s, clientID: %d, clientSerialNum: %d, clientResponse: %s", le.term.String(), le.clientData, le.clientID, le.clientSerialNum, le.clientResponse)
@@ -173,8 +187,9 @@ type LogAppendList []LogAppend
 // RPC
 // Response after RPC from another RaftNode
 type RPCResponse struct {
-	Term    Term
-	Success bool
+	Term     Term
+	Success  bool
+	LeaderID HostID
 }
 
 func (r RPCResponse) String() string {
@@ -194,7 +209,7 @@ func (c ClientResponse) String() string {
 // RaftNode
 type RaftNode struct {
 	id    HostID        // id of this node
-	state RaftNodeState // follower, leader, or candidate
+	state raftNodeState // follower, leader, or candidate
 
 	// Persistent State
 	currentTerm  Term   // latest term server has seen
@@ -217,18 +232,107 @@ type RaftNode struct {
 	clients         ClientMap       // look up table of peer id, ip, port, hostname for clients
 	electionTicker  time.Ticker     // timeouts start each election
 	heartbeatTicker time.Ticker     // Leader-only ticker for sending heartbeats during idle periods
+	giveUpTimeout   time.Duration   // during client data storage interaction, time before giving up and replying failure
 	votes           electionResults // temp storage for election results
-	killSwitch      bool            // if true, node should exit upon becoming leader
 	quitChan        chan bool       // for cleaning up spawned goroutines
 	verbose         bool
 }
 
 func (r RaftNode) String() string {
-	return fmt.Sprintf("Raft Node: id=%d, state=%s, currentTerm=%d, votedFor=%d, hosts={%s}, clients={%s}, votes={%s}, killSwitch=%t, verbose=%t, log=%s, stateMachine={%s}",
-		r.id, r.state, r.currentTerm, r.votedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.killSwitch, r.verbose, r.log.String(), r.stateMachine.String())
+	return fmt.Sprintf("Raft Node: id=%d, state=%s, currentTerm=%d, votedFor=%d, hosts={%s}, clients={%s}, votes={%s}, verbose=%t, log={%s}, stateMachine={%s}",
+		r.id, r.state, r.currentTerm, r.votedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.verbose, r.log.String(), r.stateMachine.String())
 }
 
-func (s RaftNodeState) String() string {
+func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool) *RaftNode {
+	// Initialize Log
+	initialLog := NewLog()
+	initialLog.logAppend(LogEntry{term: Term(-1),
+		clientData:      ClientData("LOG_START"),
+		clientID:        ClientID(-1),
+		clientSerialNum: ClientSerialNum(-1)})
+
+	// Initialize StateMachine
+	initialSM := NewStateMachine()
+
+	// TODO - make a NewRaftNode constructor
+	r := RaftNode{
+		id:    id,
+		state: follower,
+
+		currentTerm:  0,
+		votedFor:     -1,
+		log:          initialLog,
+		stateMachine: initialSM,
+
+		commitIndex:   0,
+		lastApplied:   0,
+		currentLeader: -1, // NOTE - notice that client needs to validate the "currentLeader" response that they get during a redirection
+
+		nextIndex:  make(map[HostID]LogIndex),
+		matchIndex: make(map[HostID]LogIndex),
+
+		hosts:           hosts,
+		clients:         clients,
+		electionTicker:  *time.NewTicker(selectElectionTimeout()),
+		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout),
+		giveUpTimeout:   2 * heartbeatTimeout * heartbeatTimeoutUnits, // TODO - is this a reasonable timeout?
+		votes:           make(electionResults),
+		quitChan:        quitChan,
+		verbose:         verbose}
+
+	// Initialize State Machine
+	for clientID := range clients {
+		r.stateMachine.clientSerialNums[clientID] = -1
+	}
+	r.stateMachine.contents = append(r.stateMachine.contents, "STATE_MACHINE_START")
+	return &r
+}
+
+func NewRaftNodeSpecial(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool, term Term, entries []LogEntry) RaftNode {
+	// Initialize StateMachine
+	initialSM := NewStateMachine()
+
+	// Initialize log with provided list of log entries
+	initialLog := NewLog()
+	for _, entry := range entries {
+		initialLog.logAppend(entry)
+	}
+
+	// TODO - make a NewRaftNode constructor
+	r := RaftNode{
+		id:    id,
+		state: follower,
+
+		currentTerm:  0,
+		votedFor:     -1,
+		log:          initialLog,
+		stateMachine: initialSM,
+
+		commitIndex:   0,
+		lastApplied:   0,
+		currentLeader: -1, // NOTE - notice that client needs to validate the "currentLeader" response that they get during a redirection
+
+		nextIndex:  make(map[HostID]LogIndex),
+		matchIndex: make(map[HostID]LogIndex),
+
+		hosts:           hosts,
+		clients:         clients,
+		electionTicker:  *time.NewTicker(selectElectionTimeout()),
+		heartbeatTicker: *time.NewTicker(fakeHeartbeatTimeout),
+		giveUpTimeout:   2 * heartbeatTimeout * heartbeatTimeoutUnits, // TODO - is this a reasonable timeout?
+		votes:           make(electionResults),
+		quitChan:        quitChan,
+		verbose:         verbose}
+
+	// Initialize State Machine
+	for clientID := range clients {
+		r.stateMachine.clientSerialNums[clientID] = -1
+	}
+	r.stateMachine.contents = append(r.stateMachine.contents, "STATE_MACHINE_START")
+	return r
+}
+
+func (s raftNodeState) String() string {
 	switch s {
 	case follower:
 		return "follower"

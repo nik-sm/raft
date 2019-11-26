@@ -11,36 +11,37 @@ import (
 	"time"
 )
 
-// All nodes must be alive to begin the protocol
-// We loop infinitely here, until we have network information for all nodes
-// 'peers' arg will be filled with appropriate info upon return
-// Returns our own id as integer. Caller (either host or client) must cast appropriately
+// ResolveAllPeers gets the net address of all raft hosts and clients, and stores these in
+// the provided HostMap and ClientMap structures.
+// Notice that all nodes must be alive to begin the protocol; thus We loop infinitely here,
+// until we have information for all nodes.
+// Returns our own id as integer. Caller (either host or client) must cast to HostID or ClientID appropriately
 func ResolveAllPeers(hosts HostMap, clients ClientMap, hostfile string, amHost bool) int {
-	decodedJson := ReadHostfileJson(hostfile)
+	decodedJSON := readHostfileJSON(hostfile)
 	myHost := HostID(-1)
 	myClient := ClientID(-1)
 
 	// Lookup our own ID, depending whether we are a raft node or a client node
 	containerName := os.Getenv("CONTAINER_NAME")
 	if amHost {
-		for i, name := range decodedJson.RaftNodes {
+		for i, name := range decodedJSON.RaftNodes {
 			if name == containerName {
 				myHost = HostID(i)
 			}
 		}
 	} else {
-		for i, name := range decodedJson.ClientNodes {
+		for i, name := range decodedJSON.ClientNodes {
 			if name == containerName {
 				myClient = ClientID(i)
 			}
 		}
 	}
 	if int(myHost) == -1 && int(myClient) == -1 {
-		log.Fatal("Did not find our own name in the hostfile")
+		panic("Did not find our own name in the hostfile")
 	}
 
 	// Make maps of all known hosts and clients
-	h, c := makeHostStringMap(decodedJson)
+	h, c := makeHostStringMap(decodedJSON)
 
 	// Continue resolving until all hosts and clients found
 	for {
@@ -56,7 +57,9 @@ func ResolveAllPeers(hosts HostMap, clients ClientMap, hostfile string, amHost b
 	return int(myClient)
 }
 
-// NOTE - We do not handle the errors from LookupHost, because we are waiting for nodes to come online
+// ResolvePeersOnce makes one attempt to identify all hosts and clients in the provided maps.
+// As they are found, peers get removed from these maps.
+// NOTE - We do not handle the errors from LookupHost, because we are waiting for nodes to come online.
 func ResolvePeersOnce(hosts HostMap, clients ClientMap, h hostStringMap, c clientStringMap) bool {
 	// Resolve raft hosts
 	for i, hostname := range h {
@@ -85,13 +88,12 @@ func ResolvePeersOnce(hosts HostMap, clients ClientMap, h hostStringMap, c clien
 	return len(h) == 0 && len(c) == 0
 }
 
-type HostsAndClients struct {
+type hostsAndClients struct {
 	RaftNodes   []string `json:"servers"`
 	ClientNodes []string `json:"clients"`
 }
 
-// TODO - return hostStringMap and clientStringMap
-func ReadHostfileJson(hostfile string) HostsAndClients {
+func readHostfileJSON(hostfile string) hostsAndClients {
 	// get contents of JSON file
 	jsonFile, err := os.Open(hostfile)
 	if err != nil {
@@ -100,12 +102,12 @@ func ReadHostfileJson(hostfile string) HostsAndClients {
 	defer jsonFile.Close()
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
-	var hc HostsAndClients
+	var hc hostsAndClients
 	json.Unmarshal(byteValue, &hc)
 	return hc
 }
 
-func makeHostStringMap(hc HostsAndClients) (hostStringMap, clientStringMap) {
+func makeHostStringMap(hc hostsAndClients) (hostStringMap, clientStringMap) {
 	// Find our own ID and build a map for DNS lookup of other hosts
 	h := make(hostStringMap)
 	c := make(clientStringMap)
@@ -118,6 +120,7 @@ func makeHostStringMap(hc HostsAndClients) (hostStringMap, clientStringMap) {
 	return h, c
 }
 
+// AppendEntriesStruct holds the input arguments for the RPC AppendEntries
 type AppendEntriesStruct struct {
 	T            Term
 	LeaderID     HostID
@@ -128,31 +131,89 @@ type AppendEntriesStruct struct {
 }
 
 // TODO - for now, assume that all RPC should be done sync (using "c.Call" instead of "c.Go"). In reality this should be async
-// to make the logic of handling rejections and peer failures more obvious
-// The leader uses this function to append to the log on all other nodes
+// to make the logic of handling rejections and peer failures more obvious. In order to do async, need waitgroup or shared channel
+//
+// The leader uses this function to append specific entries to the other nodes
+// This lets us reply to a client in realtime to give some feedback after attempting to store their current request
 // Returns true if a majority of nodes appended
-func (r *RaftNode) MultiAppendEntriesRPC(entries []LogEntry) bool {
+func (r *RaftNode) multiAppendEntriesRPC(entries []LogEntry) bool {
 	if r.verbose {
-		log.Println("MultiAppendEntries")
+		log.Println("multiAppendEntriesRPC")
 	}
 	responses := make(map[HostID]bool)
 	for hostID, h := range r.hosts {
 		if hostID == r.id {
 			continue
 		} else {
-			response := r.AppendEntriesRPC(h, entries)
+			response := r.appendEntriesRPC(h, entries)
+			if response.Term > r.currentTerm { // We fail immediately because we should be a follower
+				log.Printf("Received reply from hostID: %d with higher term: %d and leader: %d", hostID, response.Term, response.LeaderID)
+				r.shiftToFollower(response.Term, response.LeaderID)
+				return false
+			}
 			// TODO - should we check response.term to see if we need to jump ahead or something?
 			responses[hostID] = response.Success
+			if response.Success {
+				// We know exactly what index this follower's log is at
+				r.nextIndex[hostID]++
+				r.matchIndex[hostID] = r.getLastLogIndex()
+				log.Printf("For follower %d, set nextIndex to: %d, and matchIndex to: %d", hostID, r.nextIndex[hostID], r.matchIndex[hostID])
+			}
 		}
 	}
 	return haveMajority(responses)
 	// TODO - if success, update
 }
 
-func (r *RaftNode) AppendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
-	log.Fatal("TODO - after each individual AppendEntriesRPC, need to update tracking info about that follower's log indices")
+// The leader uses this during heartbeats to slowly bring all other logs up to date, or to maintain leadership.
+// For each follower,
+//   if they are up to date, we send an empty message
+//   if they are trailing behind, we send them the log entry at nextIndex[hostID].
+//     if they reject this entry, we decrement their index
+func (r *RaftNode) heartbeatAppendEntriesRPC() {
+	if r.verbose {
+		log.Println("heartbeatAppendEntriesRPC")
+	}
+	for hostID, h := range r.hosts {
+		if hostID == r.id {
+			continue
+		} else {
+			// Get a suitable entry to send to this follower
+			theirNextIdx := r.nextIndex[hostID]
+			var entries []LogEntry
+			if int(theirNextIdx) == int(r.getLastLogIndex())+1 {
+				entries = make([]LogEntry, 0, 0) // empty entries because they are up-to-date
+			} else {
+				theirNextEntry := r.log.contents[theirNextIdx]
+				entries = []LogEntry{theirNextEntry}
+			}
 
-	prevLogIdx := r.getPrevLogIndex()
+			// Send the entries and get response
+			response := r.appendEntriesRPC(h, entries)
+
+			// Check if we have been voted out, and if so, return early
+			if response.Term > r.currentTerm {
+				log.Printf("Received reply from hostID %d with higher term: %d and leaderid: %d", hostID, response.Term, response.LeaderID)
+				r.shiftToFollower(response.Term, response.LeaderID)
+				return
+			}
+
+			// Inspect response and update our tracking variables appropriately
+			if !response.Success {
+				// TODO - When responding to AppendEntries, the follower should return success if they do a new append, OR if they already have appended that entry
+				log.Printf("Decrement nextIndex for hostID %d from %d to %d", hostID, r.nextIndex[hostID], r.nextIndex[hostID]-1)
+				r.nextIndex[hostID]--
+			} else {
+				log.Printf("Increment nextIndex for hostID %d from %d to %d", hostID, r.nextIndex[hostID], r.nextIndex[hostID]+1)
+				r.matchIndex[hostID] = r.nextIndex[hostID]
+				r.nextIndex[hostID]++
+			}
+		}
+	}
+}
+
+func (r *RaftNode) appendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
+	prevLogIdx := r.getLastLogIndex()
 	logAppends := make([]LogAppend, 0, 0)
 	for i, entry := range entries {
 		logAppends = append(logAppends, LogAppend{idx: LogIndex(int(prevLogIdx) + i), entry: entry})
@@ -161,21 +222,23 @@ func (r *RaftNode) AppendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
 	args := AppendEntriesStruct{T: r.currentTerm,
 		LeaderID:     r.id,
 		PrevLogIndex: prevLogIdx,
-		PrevLogTerm:  r.getPrevLogTerm(),
+		PrevLogTerm:  r.getLastLogTerm(),
 		Entries:      logAppends,
 		LeaderCommit: r.commitIndex}
+
 	reply := RPCResponse{}
 	conn, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", p.IP, p.Port))
 	if err != nil {
-		log.Fatal("error dialing peer,", err) // TODO - this should not be fatal, we should just take note of the missing peer and maybe retry later
+		panic(err) // TODO - this should not be fatal, we should just take note of the missing peer and maybe retry later
 	}
 	err = conn.Call("RaftNode.AppendEntries", args, &reply)
 	if err != nil {
-		log.Fatal("AppendEntriesRPC:", err)
+		panic(err)
 	}
 	return reply
 }
 
+// RequestVoteStruct holds the parameters used during the Vote() RPC
 type RequestVoteStruct struct {
 	T           Term
 	CandidateID HostID
@@ -183,8 +246,12 @@ type RequestVoteStruct struct {
 	LastLogTerm Term
 }
 
-// Send a RequestVoteRPC to all peers, storing their responses
-func (r *RaftNode) MultiRequestVoteRPC() {
+func (rv RequestVoteStruct) String() string {
+	return fmt.Sprintf("Term: %d, CandidateID: %d, LastLogIdx: %d, LastLogTerm: %d", rv.T, rv.CandidateID, rv.LastLogIdx, rv.LastLogTerm)
+}
+
+// Send a requestVoteRPC to all peers, storing their responses
+func (r *RaftNode) multiRequestVoteRPC() {
 	if r.verbose {
 		log.Println("MultiRequestVote")
 	}
@@ -192,11 +259,11 @@ func (r *RaftNode) MultiRequestVoteRPC() {
 	for hostID, h := range r.hosts {
 		// TODO - confirm that we do not need to worry about receiving an AppendEntriesRPC from current leader mid-election
 		// if this DOES happen, because we lagged behind, then there must be a majority of peers who have moved on
-		// and they will just reject our RequestVoteRPC.
+		// and they will just reject our requestVoteRPC.
 		if hostID == r.id { // we always vote for ourself
 			r.votes[hostID] = true
 		} else {
-			response := r.RequestVoteRPC(h)
+			response := r.requestVoteRPC(h)
 			// TODO - should we check response.term??
 			r.votes[hostID] = response.Success
 		}
@@ -207,27 +274,38 @@ func (r *RaftNode) MultiRequestVoteRPC() {
 }
 
 // Send out an RPC to the method "Vote" on the remote host
-func (r RaftNode) RequestVoteRPC(p peer) RPCResponse {
+func (r RaftNode) requestVoteRPC(p peer) RPCResponse {
 	args := RequestVoteStruct{T: r.currentTerm,
 		CandidateID: r.id,
-		LastLogIdx:  r.getPrevLogIndex(),
-		LastLogTerm: r.getPrevLogTerm()}
-	reply := RPCResponse{}
+		LastLogIdx:  r.getLastLogIndex(),
+		LastLogTerm: r.getLastLogTerm()}
+	reply := RPCResponse{Term: r.currentTerm, Success: false, LeaderID: r.currentLeader}
+
 	conn, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", p.IP, p.Port))
 	if err != nil {
-		log.Fatal("error dialing peer,", err) // TODO should this be fatal?
+		// We do not crash here, because we don't care if that peer might be down
+		log.Printf("WARNING: problem dialing peer: %s. err: %s", p.String(), err)
+		return reply
 	}
 	err = conn.Call("RaftNode.Vote", args, &reply)
 	if err != nil {
-		log.Fatal("RequestVoteRPC:", err)
+		// We crash here, because we do not tolerate RPC errors
+		panic(fmt.Sprintf("requestVoteRPC: %s", err))
 	}
 	return reply
 }
 
-// Every time a client makes a request, they must attach a unique serial number, monotonically increasing
+// TODO - // We need to check the clientSerialNum 2 times:
+//	1) When receiving a request, we check the statemachine before trying to put the request into the log
+//  2) When applying the log to the statemachine (which still needs to happen somewhere!!!!), we first
+// 			check a log entry's serialnum against the most recent serial num per client
+
+// ClientSerialNum is a unique, monotonically increasing integer that each client attaches to their requests
 // The state machine includes a map of clients and their most recently executed serial num
 // If a request is received with a stale ClientSerialNum, the leader can immediately reply "success"
 type ClientSerialNum int
+
+// ClientDataStruct holds the inputs that a client sends when they want to store information in the statemachine
 type ClientDataStruct struct {
 	ClientID        ClientID
 	Data            ClientData
@@ -240,7 +318,7 @@ func (r *RaftNode) recvDaemon(quitChan <-chan bool) {
 	rpc.Register(r)
 	l, err := net.Listen("tcp", ":"+fmt.Sprintf("%d", recvPort))
 	if err != nil {
-		log.Fatal("listen error:", err)
+		panic(fmt.Sprintf("listen error: %s", err))
 	}
 	for {
 		select {
@@ -250,7 +328,7 @@ func (r *RaftNode) recvDaemon(quitChan <-chan bool) {
 		default:
 			conn, err := l.Accept()
 			if err != nil {
-				log.Fatal("accept error:", err)
+				panic(fmt.Sprintf("accept error: %s", err))
 			}
 			// TODO - Do we need to do extra work to kill this goroutine if we want to kill this raftnode?
 			// should this be used without goroutine?

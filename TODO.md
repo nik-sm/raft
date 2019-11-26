@@ -74,3 +74,7 @@
     commit a blank no-opentry into the log at the start of ites term"
 
 
+
+
+# Logic for applying log entries to state machine
+- When we try to apply a log entry to statemachine, we check the list of previously applied serialNums
