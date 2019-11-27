@@ -89,9 +89,9 @@ func (s StateMachine) String() string {
 // Log holds LogEntries and
 type Log []LogEntry
 
-func (r RaftNode) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
-	mostRecent := r.stateMachine.clientSerialNums[le.clientID]
-	if int(mostRecent) >= int(le.clientSerialNum) {
+func (r *RaftNode) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
+	mostRecent := r.stateMachine.clientSerialNums[le.ClientID]
+	if int(mostRecent) >= int(le.ClientSerialNum) {
 		// NOTE - TODO - the client should keep sending the item with this serial num until it lands.
 		// Therefore, if we have seen a higher serial num, the client MUST have successfully submitted this item,
 		// and it will exist in our log
@@ -103,12 +103,11 @@ func (r RaftNode) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
 
 func (l Log) getPrevResponse(le LogEntry) ClientResponse {
 	for _, entry := range l {
-		if entry.clientID == le.clientID && entry.clientSerialNum == le.clientSerialNum {
-			return entry.clientResponse
+		if entry.ClientID == le.ClientID && entry.ClientSerialNum == le.ClientSerialNum {
+			return entry.ClientResponse
 		}
 	}
 	panic("Should have had previous response!")
-	return ClientResponse{}
 }
 
 func (r *RaftNode) append(le LogEntry) {
@@ -117,15 +116,15 @@ func (r *RaftNode) append(le LogEntry) {
 }
 
 func (s *StateMachine) apply(le LogEntry) {
-	mostRecentSeen := s.clientSerialNums[le.clientID]
-	if int(mostRecentSeen) >= int(le.clientSerialNum) {
+	mostRecentSeen := s.clientSerialNums[le.ClientID]
+	if int(mostRecentSeen) >= int(le.ClientSerialNum) {
 		log.Printf("Log entry is stale/duplicated, no change to State Machine: %s", le.String())
 		return
 	}
-	s.clientSerialNums[le.clientID] = le.clientSerialNum
+	s.clientSerialNums[le.ClientID] = le.ClientSerialNum
 	// NOTE - if we used a more sophisticated type for ClientData,
 	// this is where we would need logic to apply the data to the State Machine
-	s.contents = append(s.contents, le.clientData)
+	s.contents = append(s.contents, le.ClientData)
 }
 
 func (l Log) String() string {
@@ -142,14 +141,15 @@ func (l Log) String() string {
 type LogIndex int
 
 // LogEntry is an entry in the log
+// NOTE that all fields must be public for Gob encoding during RPC
 type LogEntry struct {
-	term       Term
-	clientData ClientData
+	Term       Term
+	ClientData ClientData
 	// TODO - the following 3 fields are here for convenience
 	// They might belong to the StateMachine instead of the Log
-	clientID        ClientID        // The client who sent this data
-	clientSerialNum ClientSerialNum // The unique number the client used to identify this data
-	clientResponse  ClientResponse  // The response that was given to this client
+	ClientID        ClientID        // The client who sent this data
+	ClientSerialNum ClientSerialNum // The unique number the client used to identify this data
+	ClientResponse  ClientResponse  // The response that was given to this client
 }
 
 // ClientData represents an object sent by the client for storage in the StateMachine
@@ -157,14 +157,20 @@ type ClientData string // NOTE - could make contents a state machine update
 
 // NewLogEntry is a public constructor for a LogEntry
 func NewLogEntry(t Term, cd ClientData, cid ClientID, csn ClientSerialNum, cr ClientResponse) LogEntry {
-	return LogEntry{term: t, clientData: cd, clientID: cid, clientSerialNum: csn, clientResponse: cr}
+	return LogEntry{
+		Term:            t,
+		ClientData:      cd,
+		ClientID:        cid,
+		ClientSerialNum: csn,
+		ClientResponse:  cr}
 }
 
 func (le LogEntry) String() string {
-	return fmt.Sprintf("term: %s, clientData: %s, clientID: %d, clientSerialNum: %d, clientResponse: %s", le.term.String(), le.clientData, le.clientID, le.clientSerialNum, le.clientResponse)
+	return fmt.Sprintf("term: %s, clientData: %s, clientID: %d, clientSerialNum: %d, clientResponse: %s", le.Term.String(), le.ClientData, le.ClientID, le.ClientSerialNum, le.ClientResponse)
 }
 
 // LogAppend must be public because this is encoded by Gob during AppendEntriesRPC
+// NOTE all fields must be public for Gob encoding during RPC
 type LogAppend struct {
 	Idx   LogIndex
 	Entry LogEntry
@@ -227,8 +233,9 @@ type RaftNode struct {
 	// notice that a Term can have 0 leaders, so this should not be included inside Term type
 
 	// Volatile State (leader only, reset after each election)
-	nextIndex  map[HostID]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
-	matchIndex map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
+	nextIndex       map[HostID]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
+	matchIndex      map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
+	indexIncrements map[HostID]int      // length of the entries list we have sent to each peer
 
 	// Convenience variables
 	sync.Mutex                             // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()
@@ -245,7 +252,7 @@ type RaftNode struct {
 	verbose               bool
 }
 
-func (r RaftNode) String() string {
+func (r *RaftNode) String() string {
 	return fmt.Sprintf("Raft Node: id=%d, state=%s, currentTerm=%d, votedFor=%d, hosts={%s}, clients={%s}, votes={%s}, verbose=%t, log={%s}, stateMachine={%s}",
 		r.id, r.state, r.currentTerm, r.votedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.verbose, r.log.String(), r.stateMachine.String())
 }
@@ -254,10 +261,11 @@ func (r RaftNode) String() string {
 func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool) *RaftNode {
 	// Initialize Log
 	initialLog := []LogEntry{
-		LogEntry{term: Term(-1),
-			clientData:      ClientData("LOG_START"),
-			clientID:        ClientID(-1),
-			clientSerialNum: ClientSerialNum(-1)}}
+		LogEntry{
+			Term:            Term(-1),
+			ClientData:      ClientData("LOG_START"),
+			ClientID:        ClientID(-1),
+			ClientSerialNum: ClientSerialNum(-1)}}
 
 	// Initialize StateMachine
 	initialSM := NewStateMachine()

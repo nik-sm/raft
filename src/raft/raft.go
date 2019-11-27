@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"strings"
 	"time"
 )
 
@@ -15,7 +16,7 @@ var duration int
 var verbose bool
 
 // returns true when an agent has a majority of votes for the proposed view
-func (r RaftNode) wonElection() bool {
+func (r *RaftNode) wonElection() bool {
 	return haveMajority(r.votes)
 }
 
@@ -36,12 +37,16 @@ func haveMajority(votes map[HostID]bool) bool {
 	return false
 }
 
-func (r RaftNode) persistState() {
+func (r *RaftNode) persistState() {
+	r.Lock()
+	defer r.Unlock()
 	log.Println("TODO - persistState")
 	// Save: currentTerm, votedFor, log
 }
 
-func (r RaftNode) recoverFromDisk() {
+func (r *RaftNode) recoverFromDisk() {
+	r.Lock()
+	defer r.Unlock()
 	log.Println("TODO - recoverFromDisk")
 	// right at the restart of the node, check the standard place for
 	// a persisted state object. If exists, apply it, otherwise, just startup normally
@@ -53,11 +58,12 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 		log.Println("SHIFT TO FOLLOWER")
 	}
 	r.state = follower
-	r.ResetTickers()
+	r.resetTickers()
 	r.currentTerm = t
 	r.currentLeader = leaderID
 	r.nextIndex = nil
 	r.matchIndex = nil
+	r.indexIncrements = nil
 	r.votedFor = -1
 }
 
@@ -73,12 +79,14 @@ func (r *RaftNode) shiftToLeader() {
 	r.state = leader
 	r.currentLeader = r.id
 	r.votedFor = -1
-	r.ResetTickers()
+	r.resetTickers()
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
 	r.matchIndex = make(map[HostID]LogIndex)
+	r.indexIncrements = make(map[HostID]int)
+
 	for peerID := range r.hosts {
-		r.nextIndex[peerID] = r.getLastLogIndex() + 1
+		r.nextIndex[peerID] = r.getLastLogIndex() // TODO - the paper figure 2 "State" says this should be "leader last log index + 1" ???
 		r.matchIndex[peerID] = LogIndex(0)
 	}
 
@@ -107,7 +115,7 @@ func (r *RaftNode) shiftToCandidate() {
 		}
 	}
 	r.state = candidate
-	r.ResetTickers()
+	r.resetTickers()
 	r.currentTerm++
 	r.votedFor = r.id
 }
@@ -130,10 +138,11 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 	}
 
 	// We are the leader. Attempt to replicate this to all peer logs
-	entry := LogEntry{term: r.currentTerm,
-		clientData:      cd.Data,
-		clientID:        cd.ClientID,
-		clientSerialNum: cd.ClientSerialNum}
+	entry := LogEntry{
+		Term:            r.currentTerm,
+		ClientData:      cd.Data,
+		ClientID:        cd.ClientID,
+		ClientSerialNum: cd.ClientSerialNum}
 
 	// Try to short-circuit based on the client serial num
 	if haveNewer, prevReply := r.haveNewerSerialNum(entry); haveNewer {
@@ -171,7 +180,7 @@ func (r *RaftNode) applyNewLogEntries(updates LogAppendList) LogIndex {
 	for _, logAppendStruct := range updates {
 		logIndex := logAppendStruct.Idx
 		logEntry := logAppendStruct.Entry
-		if r.log[logIndex].term != logEntry.term {
+		if r.log[logIndex].Term != logEntry.Term {
 			if r.verbose {
 				log.Printf("Found entries with conflict: had %s, want %s. Deleting suffix...", r.log[logIndex].String(), logEntry.String())
 			}
@@ -197,7 +206,7 @@ func (r *RaftNode) updateCommitIndex() {
 	//   set commitIndex = N
 	defer r.executeLog()
 	for n := r.commitIndex + 1; n <= r.getLastLogIndex(); n++ {
-		if r.log[n].term != r.currentTerm {
+		if r.log[n].Term != r.currentTerm {
 			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.log[n].String())
 			continue
 		}
@@ -234,12 +243,13 @@ func (r *RaftNode) executeLog() {
 // TODO - some amount of duplicated logic in AppendEntries() and Vote()
 // Returns false if entries were rejected, or true if accepted
 func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) error {
+	r.Lock()
+	r.resetTickers()
+	defer r.Unlock()
 	defer r.persistState()
 	defer r.executeLog()
 	if ae.T > r.currentTerm {
-		r.Lock()
 		r.shiftToFollower(ae.T, ae.LeaderID)
-		r.Unlock()
 	}
 
 	reply.Term = r.currentTerm // no matter what, we will respond with our current term
@@ -249,7 +259,7 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) err
 		}
 		reply.Success = false
 		return nil
-	} else if r.log[ae.PrevLogIndex].term != ae.PrevLogTerm { // TODO - does this work for the very first log entry?
+	} else if r.log[ae.PrevLogIndex].Term != ae.PrevLogTerm { // TODO - does this work for the very first log entry?
 		if r.verbose {
 			log.Println("my PrevLogTerm does not match theirs")
 		}
@@ -281,16 +291,16 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) err
 // CandidateLooksEligible allows a raft node to decide whether another host's log is sufficiently up-to-date to become leader
 // Returns true if the incoming RequestVote shows that the peer is at least as up-to-date as we are
 // See paper section 5.4
-func (r RaftNode) CandidateLooksEligible(candLastLogIdx LogIndex, candLastLogTerm Term) bool {
+func (r *RaftNode) CandidateLooksEligible(candLastLogIdx LogIndex, candLastLogTerm Term) bool {
 	ourLastLogIdx := r.getLastLogIndex()
 	ourLastLogEntry := r.log[ourLastLogIdx]
 	if r.verbose {
-		log.Printf("Comparing our lastLogEntry (term %d, index %d) VS theirs (term %d, idx %d)", ourLastLogEntry.term, ourLastLogIdx, candLastLogTerm, candLastLogIdx)
+		log.Printf("Comparing our lastLogEntry (term %d, index %d) VS theirs (term %d, idx %d)", ourLastLogEntry.Term, ourLastLogIdx, candLastLogTerm, candLastLogIdx)
 	}
 
-	if int(ourLastLogEntry.term) > int(candLastLogTerm) {
+	if int(ourLastLogEntry.Term) > int(candLastLogTerm) {
 		return false
-	} else if ourLastLogEntry.term == candLastLogTerm && int(ourLastLogIdx) > int(candLastLogIdx) {
+	} else if ourLastLogEntry.Term == candLastLogTerm && int(ourLastLogIdx) > int(candLastLogIdx) {
 		return false
 	}
 	return true
@@ -346,45 +356,20 @@ func (r *RaftNode) Vote(rv RequestVoteStruct, response *RPCResponse) error {
 	}
 	response.Term = r.currentTerm
 	response.Success = true
-	r.ResetTickers()
+	r.resetTickers()
 	r.votedFor = rv.CandidateID
 	return nil
 }
 
-func containsH(s []HostID, i HostID) bool {
-	for _, v := range s {
-		if v == i {
-			return true
-		}
-	}
-	return false
-}
-
-func containsI(s []int, i int) bool {
-	for _, v := range s {
-		if v == i {
-			return true
-		}
-	}
-	return false
-}
-
-func (r RaftNode) getLastLogIndex() LogIndex {
+func (r *RaftNode) getLastLogIndex() LogIndex {
 	return LogIndex(len(r.log) - 1)
 }
 
-func (r RaftNode) getLastLogTerm() Term {
-	return Term(r.log[int(r.getLastLogIndex())].term)
+func (r *RaftNode) getLastLogTerm() Term {
+	return Term(r.log[int(r.getLastLogIndex())].Term)
 }
 
-func Min(x int, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
-func Max(x LogIndex, y LogIndex) LogIndex {
+func max(x LogIndex, y LogIndex) LogIndex {
 	if x > y {
 		return x
 	}
@@ -410,6 +395,7 @@ func (r *RaftNode) protocol() {
 			switch m.msgType {
 			case vote:
 				if r.state == candidate {
+					r.votes[m.hostID] = m.response.Success
 					if r.wonElection() {
 						r.shiftToLeader()
 					}
@@ -422,12 +408,12 @@ func (r *RaftNode) protocol() {
 						// TODO - When responding to AppendEntries, the follower should return success if they do a new append, OR if they already have appended that entry
 
 						prev := r.nextIndex[m.hostID]
-						next := Max(0, r.nextIndex[m.hostID]-1)
+						next := max(0, r.nextIndex[m.hostID]-1)
 						log.Printf("Decrement nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
 						r.nextIndex[m.hostID] = next
 					} else {
 						prev := r.nextIndex[m.hostID]
-						next := prev + 1
+						next := prev + LogIndex(r.indexIncrements[m.hostID])
 						log.Printf("Increment nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
 						r.matchIndex[m.hostID] = prev
 						r.nextIndex[m.hostID] = next
@@ -437,7 +423,7 @@ func (r *RaftNode) protocol() {
 				// TODO - update commit index or nextIndex[] and matchIndex[] based on response
 				r.executeLog()
 			default:
-				panic(fmt.Sprintf("invalid incomingMsg: %d", m))
+				panic(fmt.Sprintf("invalid incomingMsg: %d", m.msgType))
 			}
 		case <-r.heartbeatTicker.C: // Send a heartbeat (AppendEntriesRPC without contents)
 			// We do not track the success/failure of the heartbeat
@@ -451,6 +437,8 @@ func (r *RaftNode) protocol() {
 				log.Println("TIMED OUT!")
 			}
 			go r.election()
+		case <-r.quitChan:
+			r.shutdown()
 		}
 	}
 }
@@ -467,7 +455,7 @@ func (r *RaftNode) quitter(quitTime int) {
 	}
 }
 
-func (r *RaftNode) ResetTickers() time.Duration {
+func (r *RaftNode) resetTickers() time.Duration {
 	newTimeout := selectElectionTimeout(r.id) * r.electionTimeoutUnits
 	if r.verbose {
 		log.Printf("new electionTimeout: %s", newTimeout.String())
@@ -480,6 +468,23 @@ func (r *RaftNode) ResetTickers() time.Duration {
 		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout * r.heartbeatTimeoutUnits)
 	}
 	return newTimeout
+}
+
+func (r *RaftNode) printLog() {
+	var sb strings.Builder
+	for idx, entry := range r.log {
+		sb.WriteString(fmt.Sprintf("index %d, entry %s\n", idx, entry.String()))
+	}
+	log.Print(sb.String())
+}
+
+func (r *RaftNode) printStateMachine() {
+	panic("TODO - printStateMachine")
+}
+
+func (r *RaftNode) printResults() {
+	r.printLog()
+	r.printStateMachine()
 }
 
 func (r *RaftNode) shutdown() {
@@ -513,5 +518,6 @@ func Raft() {
 	go r.protocol()
 	go r.quitter(duration)
 	<-quitChan
-	log.Println("Finished...")
+	log.Println("FINISH EXPERIMENT...")
+	r.printResults()
 }

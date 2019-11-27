@@ -103,7 +103,10 @@ func readHostfileJSON(hostfile string) hostsAndClients {
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
 	var hc hostsAndClients
-	json.Unmarshal(byteValue, &hc)
+	err = json.Unmarshal(byteValue, &hc)
+	if err != nil {
+		panic(err)
+	}
 	return hc
 }
 
@@ -183,7 +186,7 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 			// Get a suitable entry to send to this follower
 			theirNextIdx := r.nextIndex[hostID]
 			var entries []LogEntry
-			if int(theirNextIdx) == int(r.getLastLogIndex())+1 {
+			if int(theirNextIdx) == int(r.getLastLogIndex()) {
 				entries = make([]LogEntry, 0, 0) // empty entries because they are up-to-date
 			} else {
 				theirNextEntry := r.log[theirNextIdx]
@@ -203,6 +206,10 @@ func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	for i, entry := range entries {
 		logAppends = append(logAppends, LogAppend{Idx: LogIndex(int(prevLogIdx) + i), Entry: entry})
 	}
+
+	r.Lock()
+	r.indexIncrements[hostID] = len(logAppends)
+	r.Unlock()
 
 	args := AppendEntriesStruct{T: r.currentTerm,
 		LeaderID:     r.id,
@@ -296,7 +303,10 @@ type ClientDataStruct struct {
 // TODO - confirm that we need a pointer receiver here, so that rpc can
 // invoke methods on the same RaftNode object we use elsewhere?
 func (r *RaftNode) recvDaemon(quitChan <-chan bool) {
-	rpc.Register(r)
+	err := rpc.Register(r)
+	if err != nil {
+		panic(err)
+	}
 	l, err := net.Listen("tcp", ":"+fmt.Sprintf("%d", recvPort))
 	if err != nil {
 		panic(fmt.Sprintf("listen error: %s", err))
