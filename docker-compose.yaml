@@ -37,18 +37,18 @@ services:
       - raft-network
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
-  raft-client-0:
-    image: raft-image
-    container_name: c0
-    restart: "no"
-    environment:
-      - CONTAINER_NAME=c0
-    build:
-      context: .
-    networks:
-      - raft-network
-    entrypoint: "client"
-    command: "-hostfile=hostfile.json -data=datafile.txt -v=${RAFT_VERBOSE}"
+    #  raft-client-0:
+    #    image: raft-image
+    #    container_name: c0
+    #    restart: "no"
+    #    environment:
+    #      - CONTAINER_NAME=c0
+    #    build:
+    #      context: .
+    #    networks:
+    #      - raft-network
+    #    entrypoint: "client"
+    #    command: "-hostfile=hostfile.json -data=datafile.txt -v=${RAFT_VERBOSE}"
       
 
 networks:

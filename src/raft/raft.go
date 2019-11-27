@@ -37,15 +37,14 @@ func haveMajority(votes map[HostID]bool) bool {
 }
 
 func (r RaftNode) persistState() {
-	// TODO - save state using Gob (?) for easy recover
+	log.Println("TODO - persistState")
 	// Save: currentTerm, votedFor, log
-	//panic("TODO - persistState")
 }
 
 func (r RaftNode) recoverFromDisk() {
-	// TODO - right at the restart of the node, check the standard place for
+	log.Println("TODO - recoverFromDisk")
+	// right at the restart of the node, check the standard place for
 	// a persisted state object. If exists, apply it, otherwise, just startup normally
-	//panic("TODO - recoverFromDisk")
 }
 
 // NOTE - important that for all the shiftTo...() functions, we must first set our state variable
@@ -57,22 +56,23 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	r.ResetTickers()
 	r.currentTerm = t
 	r.currentLeader = leaderID
-	// TODO - should we bother storing a nil entry for these leader-only maps?
 	r.nextIndex = nil
 	r.matchIndex = nil
-	return
+	r.votedFor = -1
 }
 
 // NOTE - We only become leader by doing shiftToCandidate() and voting for ourself
 // Therefore, we know who we voted for.
 // We have already adjusted our currentTerm (during shiftToCandidare())
 func (r *RaftNode) shiftToLeader() {
+	r.Lock()
+	defer r.Unlock()
 	if r.verbose {
 		log.Println("SHIFT TO LEADER")
 	}
 	r.state = leader
 	r.currentLeader = r.id
-	r.votedFor = r.id
+	r.votedFor = -1
 	r.ResetTickers()
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
@@ -85,20 +85,31 @@ func (r *RaftNode) shiftToLeader() {
 	// TODO - other fields that may need to be set here:
 	// r.currentTerm
 	// r.votedFor
-	return
+}
+
+func (r *RaftNode) election() {
+	r.shiftToCandidate()
+	r.multiRequestVoteRPC()
 }
 
 func (r *RaftNode) shiftToCandidate() {
+	r.Lock()
+	defer r.Unlock()
+
 	if r.verbose {
 		log.Println("SHIFT TO CANDIDATE")
 	}
 	r.votes = make(electionResults)
 	r.votes[r.id] = true
+	for hostID := range r.hosts {
+		if hostID != r.id {
+			r.votes[hostID] = false
+		}
+	}
 	r.state = candidate
 	r.ResetTickers()
 	r.currentTerm++
 	r.votedFor = r.id
-	go r.multiRequestVoteRPC()
 }
 
 // StoreClientData allows a client to send data to the raft cluster via RPC for storage
@@ -158,8 +169,8 @@ func (r *RaftNode) applyNewLogEntries(updates LogAppendList) LogIndex {
 		log.Printf("log before: %s", r.log.String())
 	}
 	for _, logAppendStruct := range updates {
-		logIndex := logAppendStruct.idx
-		logEntry := logAppendStruct.entry
+		logIndex := logAppendStruct.Idx
+		logEntry := logAppendStruct.Entry
 		if r.log[logIndex].term != logEntry.term {
 			if r.verbose {
 				log.Printf("Found entries with conflict: had %s, want %s. Deleting suffix...", r.log[logIndex].String(), logEntry.String())
@@ -206,12 +217,16 @@ func (r *RaftNode) updateCommitIndex() {
 
 // Based on our commit index, apply any log entries that are ready for commit
 func (r *RaftNode) executeLog() {
+	r.Lock()
+	defer r.Unlock()
 	// TODO - this function should be idempotent and safe to apply often
 	// TODO - need some stateMachine variable that represents a set of applied log entries
 	// TODO - update commit index
-	for r.commitIndex > r.lastApplied {
-		r.lastApplied++
-		r.stateMachine.apply(r.log[r.lastApplied])
+	if r.state == leader {
+		for r.commitIndex > r.lastApplied {
+			r.lastApplied++
+			r.stateMachine.apply(r.log[r.lastApplied])
+		}
 	}
 }
 
@@ -222,7 +237,9 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) err
 	defer r.persistState()
 	defer r.executeLog()
 	if ae.T > r.currentTerm {
+		r.Lock()
 		r.shiftToFollower(ae.T, ae.LeaderID)
+		r.Unlock()
 	}
 
 	reply.Term = r.currentTerm // no matter what, we will respond with our current term
@@ -286,15 +303,16 @@ func (r RaftNode) CandidateLooksEligible(candLastLogIdx LogIndex, candLastLogTer
 //	2) If we are already collecting votes for the next election, and simultaneously get a request from another node to vote for them, we do NOT give them our vote
 //    (we've already voted for ourselves!)
 //	3) if we've been offline, and wakeup and try to get votes: we get rejections, that also tell us the new term, and we immediately jump to that term as a follower
-func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
+func (r *RaftNode) Vote(rv RequestVoteStruct, response *RPCResponse) error {
 	if r.verbose {
-		log.Printf("Vote(). RequestVoteStruct: %s. My node: %s", rv.String(), r.String())
+		log.Printf("Vote(). \nRequestVoteStruct: %s. \nMy node: term: %d, votedFor %d, lastLogTerm: %d, lastLogIdx: %d",
+			rv.String(), r.currentTerm, r.votedFor, r.getLastLogTerm(), r.getLastLogIndex())
 	}
 	r.persistState()
 
-	if r.votedFor == rv.CandidateID {
+	if r.votedFor == rv.CandidateID && r.currentTerm == rv.Term {
 		// sanity check that we never receive duplicate vote requests
-		// NOTE - if we resent requestVoteRPCs like in the github.io demo, this check must be removed
+		// NOTE - if we resend requestVoteRPCs like in the github.io demo, this check must be removed
 		panic("How did we receive duplicate request vote?")
 	}
 
@@ -303,12 +321,12 @@ func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
 		if r.verbose {
 			log.Println("RV from prior term")
 		}
-		reply.Term = r.currentTerm
-		reply.Success = false
+		response.Term = r.currentTerm
+		response.Success = false
 		return nil
 	}
 
-	// We advance to the specified term
+	// If the term was in the future, we advance to the specified term
 	r.currentTerm = rv.Term
 
 	// If we have already voted, or this peer is not a valid candidate, do not grant vote
@@ -316,8 +334,8 @@ func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
 		if r.verbose {
 			log.Println("Do not grant vote")
 		}
-		reply.Term = r.currentTerm
-		reply.Success = false
+		response.Term = r.currentTerm
+		response.Success = false
 		return nil
 
 	}
@@ -326,8 +344,8 @@ func (r *RaftNode) Vote(rv RequestVoteStruct, reply *RPCResponse) error {
 	if r.verbose {
 		log.Println("Grant vote")
 	}
-	reply.Term = r.currentTerm
-	reply.Success = true
+	response.Term = r.currentTerm
+	response.Success = true
 	r.ResetTickers()
 	r.votedFor = rv.CandidateID
 	return nil
@@ -359,6 +377,20 @@ func (r RaftNode) getLastLogTerm() Term {
 	return Term(r.log[int(r.getLastLogIndex())].term)
 }
 
+func Min(x int, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func Max(x LogIndex, y LogIndex) LogIndex {
+	if x > y {
+		return x
+	}
+	return y
+}
+
 // Main leader Election Procedure
 func (r *RaftNode) protocol() {
 	log.Printf("Begin Protocol. verbose: %t", r.verbose)
@@ -366,6 +398,15 @@ func (r *RaftNode) protocol() {
 	for {
 		select {
 		case m := <-r.incomingChan:
+			if m.response.Term > r.currentTerm {
+				if r.verbose {
+					log.Printf("Received reply from hostID %d with higher term: %d and leaderid: %d", m.hostID, m.response.Term, m.response.LeaderID)
+				}
+				r.Lock()
+				go r.shiftToFollower(m.response.Term, m.response.LeaderID)
+				r.Unlock()
+			}
+
 			switch m.msgType {
 			case vote:
 				if r.state == candidate {
@@ -374,6 +415,25 @@ func (r *RaftNode) protocol() {
 					}
 				}
 			case appendEntries:
+				if r.state == leader { // We might have been deposed
+
+					// Inspect response and update our tracking variables appropriately
+					if !m.response.Success {
+						// TODO - When responding to AppendEntries, the follower should return success if they do a new append, OR if they already have appended that entry
+
+						prev := r.nextIndex[m.hostID]
+						next := Max(0, r.nextIndex[m.hostID]-1)
+						log.Printf("Decrement nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
+						r.nextIndex[m.hostID] = next
+					} else {
+						prev := r.nextIndex[m.hostID]
+						next := prev + 1
+						log.Printf("Increment nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
+						r.matchIndex[m.hostID] = prev
+						r.nextIndex[m.hostID] = next
+					}
+				}
+
 				// TODO - update commit index or nextIndex[] and matchIndex[] based on response
 				r.executeLog()
 			default:
@@ -390,7 +450,7 @@ func (r *RaftNode) protocol() {
 			if r.verbose {
 				log.Println("TIMED OUT!")
 			}
-			r.shiftToCandidate()
+			go r.election()
 		}
 	}
 }
@@ -408,7 +468,7 @@ func (r *RaftNode) quitter(quitTime int) {
 }
 
 func (r *RaftNode) ResetTickers() time.Duration {
-	newTimeout := selectElectionTimeout() * r.electionTimeoutUnits
+	newTimeout := selectElectionTimeout(r.id) * r.electionTimeoutUnits
 	if r.verbose {
 		log.Printf("new electionTimeout: %s", newTimeout.String())
 	}

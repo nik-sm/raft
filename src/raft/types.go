@@ -5,13 +5,12 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
 
-// TODO - could reduce usages of map and use slices instead where possible
-
 // ClientID is the integer ID of a client node
-type ClientID int // TODO - if we only have a single client, maybe this can be simplified to "type client peer"
+type ClientID int
 
 // HostID is the integer ID of a raft host node
 type HostID int
@@ -112,8 +111,6 @@ func (l Log) getPrevResponse(le LogEntry) ClientResponse {
 	return ClientResponse{}
 }
 
-// TODO - only this append function should be called
-// Therefore we should split the package, and only this one should be exported
 func (r *RaftNode) append(le LogEntry) {
 	r.log = append(r.log, le)
 	r.executeLog()
@@ -169,8 +166,8 @@ func (le LogEntry) String() string {
 
 // LogAppend must be public because this is encoded by Gob during AppendEntriesRPC
 type LogAppend struct {
-	idx   LogIndex
-	entry LogEntry
+	Idx   LogIndex
+	Entry LogEntry
 }
 
 // LogAppendList describes exactly where to place each of a list of LogEntries.
@@ -202,8 +199,9 @@ func (c ClientResponse) String() string {
 type msgType int
 
 type incomingMsg struct {
-	msgType  msgType
-	response RPCResponse
+	msgType  msgType     // What type of response did we receive
+	hostID   HostID      // who responded
+	response RPCResponse // Contents of their response
 }
 
 const (
@@ -218,7 +216,7 @@ type RaftNode struct {
 
 	// Persistent State
 	currentTerm  Term   // latest term server has seen
-	votedFor     HostID // ID of candidate that received vote in current term (or null if none) // TODO - null? -1?
+	votedFor     HostID // ID of candidate that received vote in current term (or -1 if none)
 	log          Log
 	stateMachine StateMachine
 
@@ -233,6 +231,7 @@ type RaftNode struct {
 	matchIndex map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
 
 	// Convenience variables
+	sync.Mutex                             // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()
 	incomingChan          chan incomingMsg // for collecting and reacting to async RPC responses
 	hosts                 HostMap          // look up table of peer id, ip, port, hostname for other raft nodes
 	clients               ClientMap        // look up table of peer id, ip, port, hostname for clients
@@ -263,7 +262,8 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 	// Initialize StateMachine
 	initialSM := NewStateMachine()
 
-	// TODO - make a NewRaftNode constructor
+	electionTimeoutUnits := time.Second
+
 	r := RaftNode{
 		id:    id,
 		state: follower,
@@ -280,12 +280,13 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 		nextIndex:  make(map[HostID]LogIndex),
 		matchIndex: make(map[HostID]LogIndex),
 
+		incomingChan:          make(chan incomingMsg),
 		hosts:                 hosts,
 		clients:               clients,
-		electionTicker:        *time.NewTicker(selectElectionTimeout()),
-		electionTimeoutUnits:  time.Millisecond,
+		electionTicker:        *time.NewTicker(selectElectionTimeout(id) * electionTimeoutUnits),
+		electionTimeoutUnits:  electionTimeoutUnits,
 		heartbeatTicker:       *time.NewTicker(fakeHeartbeatTimeout),
-		heartbeatTimeoutUnits: time.Millisecond,
+		heartbeatTimeoutUnits: time.Second,
 		giveUpTimeout:         2 * heartbeatTimeout * time.Second, // TODO - is this a reasonable timeout?
 		votes:                 make(electionResults),
 		quitChan:              quitChan,

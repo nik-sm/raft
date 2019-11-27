@@ -140,15 +140,17 @@ func (r *RaftNode) multiAppendEntriesRPC(entries []LogEntry) bool {
 	if r.verbose {
 		log.Println("multiAppendEntriesRPC")
 	}
-	responses := make(map[HostID]bool)
-	for hostID, h := range r.hosts {
-		if hostID == r.id {
-			continue
-		} else {
-			response := r.appendEntriesRPC(h, entries)
+	// responses := make(map[HostID]bool)
+	for hostID := range r.hosts {
+		if hostID != r.id {
+			go r.appendEntriesRPC(hostID, entries)
+			/* TODO - for storing client data, do we need to collect the responses in a particular way to decide if we received a majority??
+			response := r.appendEntriesRPC(hostID, entries)
 			if response.Term > r.currentTerm { // We fail immediately because we should be a follower
 				log.Printf("Received reply from hostID: %d with higher term: %d and leader: %d", hostID, response.Term, response.LeaderID)
+				r.Lock()
 				r.shiftToFollower(response.Term, response.LeaderID)
+				r.Unlock()
 				return false
 			}
 			// TODO - should we check response.term to see if we need to jump ahead or something?
@@ -159,9 +161,11 @@ func (r *RaftNode) multiAppendEntriesRPC(entries []LogEntry) bool {
 				r.matchIndex[hostID] = r.getLastLogIndex()
 				log.Printf("For follower %d, set nextIndex to: %d, and matchIndex to: %d", hostID, r.nextIndex[hostID], r.matchIndex[hostID])
 			}
+			*/
 		}
 	}
-	return haveMajority(responses)
+	return false
+	// return haveMajority(responses)
 	// TODO - if success, update
 }
 
@@ -174,10 +178,8 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 	if r.verbose {
 		log.Println("heartbeatAppendEntriesRPC")
 	}
-	for hostID, h := range r.hosts {
-		if hostID == r.id {
-			continue
-		} else {
+	for hostID := range r.hosts {
+		if hostID != r.id {
 			// Get a suitable entry to send to this follower
 			theirNextIdx := r.nextIndex[hostID]
 			var entries []LogEntry
@@ -189,34 +191,17 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 			}
 
 			// Send the entries and get response
-			response := r.appendEntriesRPC(h, entries)
-
-			// Check if we have been voted out, and if so, return early
-			if response.Term > r.currentTerm {
-				log.Printf("Received reply from hostID %d with higher term: %d and leaderid: %d", hostID, response.Term, response.LeaderID)
-				r.shiftToFollower(response.Term, response.LeaderID)
-				return
-			}
-
-			// Inspect response and update our tracking variables appropriately
-			if !response.Success {
-				// TODO - When responding to AppendEntries, the follower should return success if they do a new append, OR if they already have appended that entry
-				log.Printf("Decrement nextIndex for hostID %d from %d to %d", hostID, r.nextIndex[hostID], r.nextIndex[hostID]-1)
-				r.nextIndex[hostID]--
-			} else {
-				log.Printf("Increment nextIndex for hostID %d from %d to %d", hostID, r.nextIndex[hostID], r.nextIndex[hostID]+1)
-				r.matchIndex[hostID] = r.nextIndex[hostID]
-				r.nextIndex[hostID]++
-			}
+			go r.appendEntriesRPC(hostID, entries)
 		}
 	}
 }
 
-func (r *RaftNode) appendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
+func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
+	p := r.hosts[hostID]
 	prevLogIdx := r.getLastLogIndex()
 	logAppends := make([]LogAppend, 0, 0)
 	for i, entry := range entries {
-		logAppends = append(logAppends, LogAppend{idx: LogIndex(int(prevLogIdx) + i), entry: entry})
+		logAppends = append(logAppends, LogAppend{Idx: LogIndex(int(prevLogIdx) + i), Entry: entry})
 	}
 
 	args := AppendEntriesStruct{T: r.currentTerm,
@@ -226,16 +211,19 @@ func (r *RaftNode) appendEntriesRPC(p peer, entries []LogEntry) RPCResponse {
 		Entries:      logAppends,
 		LeaderCommit: r.commitIndex}
 
-	reply := RPCResponse{}
+	response := RPCResponse{}
 	conn, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", p.IP, p.Port))
 	if err != nil {
-		panic(err) // TODO - this should not be fatal, we should just take note of the missing peer and maybe retry later
+		log.Printf("WARNING: problem dialing peer: %s, err: %s", p.String(), err)
+		response = RPCResponse{Term: r.currentTerm, Success: false, LeaderID: r.currentLeader}
+	} else {
+		err = conn.Call("RaftNode.AppendEntries", args, &response)
+		if err != nil {
+			panic(err)
+		}
 	}
-	err = conn.Call("RaftNode.AppendEntries", args, &reply)
-	if err != nil {
-		panic(err)
-	}
-	return reply
+
+	r.incomingChan <- incomingMsg{msgType: appendEntries, hostID: hostID, response: response}
 }
 
 // RequestVoteStruct holds the parameters used during the Vote() RPC
@@ -255,17 +243,16 @@ func (r *RaftNode) multiRequestVoteRPC() {
 	if r.verbose {
 		log.Println("MultiRequestVote")
 	}
-	for hostID, h := range r.hosts {
-		if hostID == r.id {
-			continue
-		} else {
-			go r.requestVoteRPC(h)
+	for hostID := range r.hosts {
+		if hostID != r.id {
+			go r.requestVoteRPC(hostID)
 		}
 	}
 }
 
 // Send out an RPC to the method "Vote" on the remote host
-func (r *RaftNode) requestVoteRPC(p peer) {
+func (r *RaftNode) requestVoteRPC(hostID HostID) {
+	p := r.hosts[hostID]
 	args := RequestVoteStruct{
 		Term:        r.currentTerm,
 		CandidateID: r.id,
@@ -286,7 +273,7 @@ func (r *RaftNode) requestVoteRPC(p peer) {
 			panic(fmt.Sprintf("requestVoteRPC: %s", err))
 		}
 	}
-	r.incomingChan <- incomingMsg{msgType: vote, response: response}
+	r.incomingChan <- incomingMsg{msgType: vote, hostID: hostID, response: response}
 }
 
 // TODO - // We need to check the clientSerialNum 2 times:
