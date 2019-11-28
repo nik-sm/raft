@@ -151,6 +151,7 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 		return nil
 	}
 
+	// TODO - critical change for reliability from POV of client: we need to somehow determine when the change has been committed to the cluster, and THEN respond to the client
 	r.append(entry)
 	majorityStored := false
 	for !majorityStored {
@@ -488,12 +489,12 @@ func (r *RaftNode) printLog() {
 func (r *RaftNode) printStateMachine() {
 	var sb strings.Builder
 	sb.WriteString("clientSerialNums:[")
-	for cid, csn := range r.clientSerialNums {
-		sb.WriteString(fmt.Sprintf("client %d, serialNum %d", cid, csn)
+	for cid, csn := range r.stateMachine.clientSerialNums {
+		sb.WriteString(fmt.Sprintf("client %d, serialNum %d", cid, csn))
 	}
 	sb.WriteString("].\ncontents:[")
-	for idx, entry := range r.contents {
-		sb.WriteString(fmt.Sprintf("index %d, entry %s", idx, entry.String())
+	for idx, entry := range r.stateMachine.contents {
+		sb.WriteString(fmt.Sprintf("index %d, entry %s", idx, entry))
 	}
 	sb.WriteString("]")
 	log.Println(sb.String())
