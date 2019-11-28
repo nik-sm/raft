@@ -69,7 +69,7 @@ type StateMachine struct {
 
 // NewStateMachine constructs an empty StateMachine
 func NewStateMachine() StateMachine {
-	return StateMachine{clientSerialNums: make(map[ClientID]ClientSerialNum), contents: make([]ClientData, 0, 0)}
+	return StateMachine{clientSerialNums: make(map[ClientID]ClientSerialNum), contents: make([]ClientData, 0)}
 }
 
 func (s StateMachine) String() string {
@@ -238,18 +238,17 @@ type RaftNode struct {
 	indexIncrements map[HostID]int      // length of the entries list we have sent to each peer
 
 	// Convenience variables
-	sync.Mutex                             // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()
-	incomingChan          chan incomingMsg // for collecting and reacting to async RPC responses
-	hosts                 HostMap          // look up table of peer id, ip, port, hostname for other raft nodes
-	clients               ClientMap        // look up table of peer id, ip, port, hostname for clients
-	electionTicker        time.Ticker      // timeouts start each election
-	electionTimeoutUnits  time.Duration    // units to use for election timeout
-	heartbeatTicker       time.Ticker      // Leader-only ticker for sending heartbeats during idle periods
-	heartbeatTimeoutUnits time.Duration    // units to use for heartbeat timeout
-	giveUpTimeout         time.Duration    // during client data storage interaction, time before giving up and replying failure
-	votes                 electionResults  // temp storage for election results
-	quitChan              chan bool        // for cleaning up spawned goroutines
-	verbose               bool
+	sync.Mutex                       // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()
+	incomingChan    chan incomingMsg // for collecting and reacting to async RPC responses
+	hosts           HostMap          // look up table of peer id, ip, port, hostname for other raft nodes
+	clients         ClientMap        // look up table of peer id, ip, port, hostname for clients
+	electionTicker  time.Ticker      // timeouts start each election
+	timeoutUnits    time.Duration    // units to use for election timeout
+	heartbeatTicker time.Ticker      // Leader-only ticker for sending heartbeats during idle periods
+	giveUpTimeout   time.Duration    // during client data storage interaction, time before giving up and replying failure
+	votes           electionResults  // temp storage for election results
+	quitChan        chan bool        // for cleaning up spawned goroutines
+	verbose         bool
 }
 
 func (r *RaftNode) String() string {
@@ -270,8 +269,6 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 	// Initialize StateMachine
 	initialSM := NewStateMachine()
 
-	electionTimeoutUnits := time.Second
-
 	r := RaftNode{
 		id:    id,
 		state: follower,
@@ -288,17 +285,14 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 		nextIndex:  make(map[HostID]LogIndex),
 		matchIndex: make(map[HostID]LogIndex),
 
-		incomingChan:          make(chan incomingMsg),
-		hosts:                 hosts,
-		clients:               clients,
-		electionTicker:        *time.NewTicker(selectElectionTimeout(id) * electionTimeoutUnits),
-		electionTimeoutUnits:  electionTimeoutUnits,
-		heartbeatTicker:       *time.NewTicker(fakeHeartbeatTimeout),
-		heartbeatTimeoutUnits: time.Second,
-		giveUpTimeout:         2 * heartbeatTimeout * time.Second, // TODO - is this a reasonable timeout?
-		votes:                 make(electionResults),
-		quitChan:              quitChan,
-		verbose:               verbose}
+		incomingChan:  make(chan incomingMsg),
+		hosts:         hosts,
+		clients:       clients,
+		timeoutUnits:  timeoutUnits,
+		giveUpTimeout: 2 * heartbeatTimeout * timeoutUnits, // TODO - is this a reasonable timeout?
+		votes:         make(electionResults),
+		quitChan:      quitChan,
+		verbose:       verbose}
 
 	// Initialize State Machine
 	for clientID := range clients {

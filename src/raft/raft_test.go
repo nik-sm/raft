@@ -7,9 +7,9 @@ import (
 )
 
 // Prepare a test, specifying term, lastLogTerm, and lastLogIdx of voter
-func mockRaftNode(vTerm Term, vLastLogTerm Term, vLastLogIdx int) RaftNode {
+func mockRaftNode(vTerm Term, vLastLogTerm Term, vLastLogIdx int) *RaftNode {
 	// Build dummy log for voter
-	log := make([]LogEntry, 0, 0)
+	log := make([]LogEntry, 0)
 	for i := 0; i <= vLastLogIdx; i++ {
 		log = append(log, NewLogEntry(
 			vLastLogTerm,                   // Term
@@ -20,7 +20,7 @@ func mockRaftNode(vTerm Term, vLastLogTerm Term, vLastLogIdx int) RaftNode {
 	}
 
 	// Construct voter node
-	voter := *NewRaftNode(
+	voter := NewRaftNode(
 		HostID(0),
 		make(HostMap),   // Empty hosts map
 		make(ClientMap), // Empty clients map
@@ -36,16 +36,16 @@ func mockRaftNode(vTerm Term, vLastLogTerm Term, vLastLogIdx int) RaftNode {
 
 // Ticker tests
 
-func ExampleRaftNode_ResetTickers_notTooFast() {
+func ExampleRaftNode_resetTickers_notTooFast() {
 	r := mockRaftNode(Term(0), Term(0), 0)
-	r.electionTimeoutUnits = time.Millisecond
+	r.timeoutUnits = time.Millisecond
 
 	var result strings.Builder
 	result.WriteString("begin.")
 	nIteration := 5
 	for i := 0; i < nIteration; i++ {
-		var newTimeout time.Duration = r.resetTickers()
-		var half time.Duration = newTimeout / 2
+		var electionTimeout, _ time.Duration = r.resetTickers()
+		var half time.Duration = electionTimeout / 2
 
 	Loop:
 		for {
@@ -64,23 +64,23 @@ func ExampleRaftNode_ResetTickers_notTooFast() {
 	// Output: begin.end
 }
 
-func ExampleRaftNode_ResetTickers_notTooSlow() {
+func ExampleRaftNode_resetTickers_notTooSlow() {
 	r := mockRaftNode(Term(0), Term(0), 0)
-	r.electionTimeoutUnits = time.Millisecond
+	r.timeoutUnits = time.Millisecond
 
 	var result strings.Builder
 	result.WriteString("begin.")
 	nIteration := 5
 	for i := 0; i < nIteration; i++ {
-		var newTimeout time.Duration = r.resetTickers()
-		var half time.Duration = newTimeout / 2
+		var electionTimeout, _ time.Duration = r.resetTickers()
+		var half time.Duration = electionTimeout / 2
 
 	Loop:
 		for {
 			select {
 			case <-r.electionTicker.C: // should always trigger first
 				break Loop
-			case <-time.After(newTimeout + half):
+			case <-time.After(electionTimeout + half):
 				result.WriteString("bad.")
 				break Loop
 			}

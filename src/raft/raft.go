@@ -21,20 +21,20 @@ func (r *RaftNode) wonElection() bool {
 }
 
 func haveMajority(votes map[HostID]bool) bool {
+	var sb strings.Builder
 	nVoters := len(votes)
 	nReq := int(math.Floor(float64(nVoters)/2)) + 1
 	nFound := 0
-	log.Printf("Checking majority. nVoters: %d, nReq: %d", nVoters, nReq)
-	for _, votedYes := range votes {
+	sb.WriteString("[")
+	for hostID, votedYes := range votes {
 		if votedYes {
 			nFound++
 		}
+		sb.WriteString(fmt.Sprintf("|host %d, votedYes %t|", hostID, votedYes))
 	}
-	log.Printf("Checking majority. nFound: %d", nFound)
-	if nFound >= nReq {
-		return true
-	}
-	return false
+	sb.WriteString("]")
+	log.Printf("Checking majority. nVoters: %d, nReq: %d, nFound: %d, Votes: %s", nVoters, nReq, nFound, sb.String())
+	return nFound >= nReq
 }
 
 func (r *RaftNode) persistState() {
@@ -55,7 +55,7 @@ func (r *RaftNode) recoverFromDisk() {
 // NOTE - important that for all the shiftTo...() functions, we must first set our state variable
 func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	if r.verbose {
-		log.Println("SHIFT TO FOLLOWER")
+		log.Printf("############\nSHIFT TO FOLLOWER, Term: %d, LeaderID: %d", t, leaderID)
 	}
 	r.state = follower
 	r.resetTickers()
@@ -73,13 +73,14 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 func (r *RaftNode) shiftToLeader() {
 	r.Lock()
 	defer r.Unlock()
+	defer r.heartbeatAppendEntriesRPC() // We need to confirm leadership with all nodes
 	if r.verbose {
-		log.Println("SHIFT TO LEADER")
+		log.Printf("############\nSHIFT TO LEADER. Term: %d", r.currentTerm)
 	}
 	r.state = leader
 	r.currentLeader = r.id
 	r.votedFor = -1
-	r.resetTickers()
+
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
 	r.matchIndex = make(map[HostID]LogIndex)
@@ -89,10 +90,6 @@ func (r *RaftNode) shiftToLeader() {
 		r.nextIndex[peerID] = r.getLastLogIndex() // TODO - the paper figure 2 "State" says this should be "leader last log index + 1" ???
 		r.matchIndex[peerID] = LogIndex(0)
 	}
-
-	// TODO - other fields that may need to be set here:
-	// r.currentTerm
-	// r.votedFor
 }
 
 func (r *RaftNode) election() {
@@ -105,7 +102,7 @@ func (r *RaftNode) shiftToCandidate() {
 	defer r.Unlock()
 
 	if r.verbose {
-		log.Println("SHIFT TO CANDIDATE")
+		log.Println("############\nSHIFT TO CANDIDATE")
 	}
 	r.votes = make(electionResults)
 	r.votes[r.id] = true
@@ -242,50 +239,49 @@ func (r *RaftNode) executeLog() {
 // AppendEntries is called by RPC from the leader to modify the log of a follower.
 // TODO - some amount of duplicated logic in AppendEntries() and Vote()
 // Returns false if entries were rejected, or true if accepted
-func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, reply *RPCResponse) error {
-	r.Lock()
+func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, response *RPCResponse) error {
 	r.resetTickers()
-	defer r.Unlock()
-	defer r.persistState()
+	r.persistState()
 	defer r.executeLog()
-	if ae.T > r.currentTerm {
-		r.shiftToFollower(ae.T, ae.LeaderID)
+	response.Term = r.currentTerm
+
+	if r.verbose {
+		log.Printf("AppendEntries().")
 	}
 
-	reply.Term = r.currentTerm // no matter what, we will respond with our current term
-	if ae.T < r.currentTerm {
+	// AppendEntries requires same or future term
+	if ae.Term < r.currentTerm {
 		if r.verbose {
 			log.Println("AE from stale term")
 		}
-		reply.Success = false
+		response.Success = false
 		return nil
-	} else if r.log[ae.PrevLogIndex].Term != ae.PrevLogTerm { // TODO - does this work for the very first log entry?
+	}
+
+	// TODO - shifting to follower each time is slightly inefficient, but keeps things uniform
+	r.shiftToFollower(ae.Term, ae.LeaderID)
+
+	// Check if the AE matches our last log term
+	if r.log[ae.PrevLogIndex].Term != ae.PrevLogTerm {
+		// TODO - does this work for the very first log entry?
 		if r.verbose {
 			log.Println("my PrevLogTerm does not match theirs")
 		}
-		reply.Success = false
-		return nil
-	} else {
-		if r.verbose {
-			log.Println("Applying entries...")
-		}
-		reply.Success = true
-		lastIndex := r.applyNewLogEntries(ae.Entries)
-
-		// Now we need to decide how to set our local commit index
-		if ae.LeaderCommit > r.commitIndex {
-			// set commitIndex = min(leaderCommit, index of last new entry)
-			if lastIndex < ae.LeaderCommit {
-				// we still need more entries from the leader, but we can commit what we have so far
-				r.commitIndex = lastIndex
-			} else {
-				// we may now have some log entries that are not yet ready for commit/still need quorum
-				// we can commit as much as the leader has
-				r.commitIndex = ae.LeaderCommit
-			}
-		}
+		response.Success = false
 		return nil
 	}
+
+	if r.verbose {
+		log.Println("Applying entries...")
+	}
+	response.Success = true
+	lastIndex := r.applyNewLogEntries(ae.Entries)
+
+	// Now we need to decide how to set our local commit index
+	if ae.LeaderCommit > r.commitIndex {
+		r.commitIndex = min(lastIndex, ae.LeaderCommit)
+	}
+	return nil
 }
 
 // CandidateLooksEligible allows a raft node to decide whether another host's log is sufficiently up-to-date to become leader
@@ -314,49 +310,42 @@ func (r *RaftNode) CandidateLooksEligible(candLastLogIdx LogIndex, candLastLogTe
 //    (we've already voted for ourselves!)
 //	3) if we've been offline, and wakeup and try to get votes: we get rejections, that also tell us the new term, and we immediately jump to that term as a follower
 func (r *RaftNode) Vote(rv RequestVoteStruct, response *RPCResponse) error {
+	r.resetTickers()
+	r.persistState()
+	response.Term = r.currentTerm
+
 	if r.verbose {
 		log.Printf("Vote(). \nRequestVoteStruct: %s. \nMy node: term: %d, votedFor %d, lastLogTerm: %d, lastLogIdx: %d",
 			rv.String(), r.currentTerm, r.votedFor, r.getLastLogTerm(), r.getLastLogIndex())
 	}
-	r.persistState()
 
-	if r.votedFor == rv.CandidateID && r.currentTerm == rv.Term {
-		// sanity check that we never receive duplicate vote requests
-		// NOTE - if we resend requestVoteRPCs like in the github.io demo, this check must be removed
-		panic("How did we receive duplicate request vote?")
-	}
-
-	// We will only vote for a future term
+	// Vote requires future term
 	if rv.Term <= r.currentTerm {
 		if r.verbose {
 			log.Println("RV from prior term")
 		}
-		response.Term = r.currentTerm
 		response.Success = false
 		return nil
 	}
 
-	// If the term was in the future, we advance to the specified term
-	r.currentTerm = rv.Term
+	// By this point, we know the vote request comes from future term
+	// Therefore, we must shift to follower and decide whether to grant vote
+	r.shiftToFollower(rv.Term, HostID(-1)) // We do not yet know who is leader for this term
 
 	// If we have already voted, or this peer is not a valid candidate, do not grant vote
 	if (r.votedFor != -1) || !r.CandidateLooksEligible(rv.LastLogIdx, rv.LastLogTerm) {
 		if r.verbose {
 			log.Println("Do not grant vote")
 		}
-		response.Term = r.currentTerm
 		response.Success = false
 		return nil
-
 	}
 
 	// Otherwise, we grant vote
 	if r.verbose {
 		log.Println("Grant vote")
 	}
-	response.Term = r.currentTerm
 	response.Success = true
-	r.resetTickers()
 	r.votedFor = rv.CandidateID
 	return nil
 }
@@ -376,8 +365,16 @@ func max(x LogIndex, y LogIndex) LogIndex {
 	return y
 }
 
+func min(x LogIndex, y LogIndex) LogIndex {
+	if x < y {
+		return x
+	}
+	return y
+}
+
 // Main leader Election Procedure
 func (r *RaftNode) protocol() {
+	r.resetTickers()
 	log.Printf("Begin Protocol. verbose: %t", r.verbose)
 
 	for {
@@ -425,18 +422,18 @@ func (r *RaftNode) protocol() {
 			default:
 				panic(fmt.Sprintf("invalid incomingMsg: %d", m.msgType))
 			}
-		case <-r.heartbeatTicker.C: // Send a heartbeat (AppendEntriesRPC without contents)
-			// We do not track the success/failure of the heartbeat
-			if r.state != leader {
-				panic("heartbeat ticker triggered on non-leader node")
+		case <-r.heartbeatTicker.C: // Send append entries, either empty or full depending on the peer's log index
+			if r.state == leader {
+				r.heartbeatAppendEntriesRPC()
+				r.updateCommitIndex()
 			}
-			r.heartbeatAppendEntriesRPC()
-			r.updateCommitIndex()
 		case <-r.electionTicker.C: // Periodically time out and start a new election
-			if r.verbose {
-				log.Println("TIMED OUT!")
+			if r.state == follower {
+				if r.verbose {
+					log.Println("FOLLOWER TIMED OUT!")
+				}
+				r.election()
 			}
-			go r.election()
 		case <-r.quitChan:
 			r.shutdown()
 		}
@@ -455,19 +452,29 @@ func (r *RaftNode) quitter(quitTime int) {
 	}
 }
 
-func (r *RaftNode) resetTickers() time.Duration {
-	newTimeout := selectElectionTimeout(r.id) * r.electionTimeoutUnits
+func (r *RaftNode) resetElectionTicker() time.Duration {
+	newTimeout := selectElectionTimeout(r.id) * r.timeoutUnits
 	if r.verbose {
-		log.Printf("new electionTimeout: %s", newTimeout.String())
+		log.Printf("new election timeout: %s", newTimeout.String())
 	}
 	r.electionTicker = *time.NewTicker(newTimeout)
-	if r.state == leader {
-		r.heartbeatTicker = *time.NewTicker(heartbeatTimeout * r.heartbeatTimeoutUnits)
-	} else {
-		// TODO - goofy solution, set the heartbeat very long unless we are leader
-		r.heartbeatTicker = *time.NewTicker(fakeHeartbeatTimeout * r.heartbeatTimeoutUnits)
-	}
 	return newTimeout
+}
+
+func (r *RaftNode) resetHeartbeatTicker() time.Duration {
+	var newTimeout time.Duration
+	newTimeout = heartbeatTimeout * r.timeoutUnits
+	if r.verbose {
+		log.Printf("new heartbeat timeout: %s", newTimeout.String())
+	}
+	r.heartbeatTicker = *time.NewTicker(newTimeout)
+	return newTimeout
+}
+
+func (r *RaftNode) resetTickers() (time.Duration, time.Duration) {
+	electionTimeout := r.resetElectionTicker()
+	heartbeatTimeout := r.resetHeartbeatTicker()
+	return electionTimeout, heartbeatTimeout
 }
 
 func (r *RaftNode) printLog() {
@@ -479,7 +486,17 @@ func (r *RaftNode) printLog() {
 }
 
 func (r *RaftNode) printStateMachine() {
-	panic("TODO - printStateMachine")
+	var sb strings.Builder
+	sb.WriteString("clientSerialNums:[")
+	for cid, csn := range r.clientSerialNums {
+		sb.WriteString(fmt.Sprintf("client %d, serialNum %d", cid, csn)
+	}
+	sb.WriteString("].\ncontents:[")
+	for idx, entry := range r.contents {
+		sb.WriteString(fmt.Sprintf("index %d, entry %s", idx, entry.String())
+	}
+	sb.WriteString("]")
+	log.Println(sb.String())
 }
 
 func (r *RaftNode) printResults() {

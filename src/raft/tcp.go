@@ -125,7 +125,7 @@ func makeHostStringMap(hc hostsAndClients) (hostStringMap, clientStringMap) {
 
 // AppendEntriesStruct holds the input arguments for the RPC AppendEntries
 type AppendEntriesStruct struct {
-	T            Term
+	Term         Term
 	LeaderID     HostID
 	PrevLogIndex LogIndex
 	PrevLogTerm  Term
@@ -181,13 +181,14 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 	if r.verbose {
 		log.Println("heartbeatAppendEntriesRPC")
 	}
+
 	for hostID := range r.hosts {
 		if hostID != r.id {
 			// Get a suitable entry to send to this follower
 			theirNextIdx := r.nextIndex[hostID]
 			var entries []LogEntry
 			if int(theirNextIdx) == int(r.getLastLogIndex()) {
-				entries = make([]LogEntry, 0, 0) // empty entries because they are up-to-date
+				entries = make([]LogEntry, 0) // empty entries because they are up-to-date
 			} else {
 				theirNextEntry := r.log[theirNextIdx]
 				entries = []LogEntry{theirNextEntry}
@@ -202,7 +203,7 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	p := r.hosts[hostID]
 	prevLogIdx := r.getLastLogIndex()
-	logAppends := make([]LogAppend, 0, 0)
+	logAppends := make([]LogAppend, 0)
 	for i, entry := range entries {
 		logAppends = append(logAppends, LogAppend{Idx: LogIndex(int(prevLogIdx) + i), Entry: entry})
 	}
@@ -211,7 +212,8 @@ func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	r.indexIncrements[hostID] = len(logAppends)
 	r.Unlock()
 
-	args := AppendEntriesStruct{T: r.currentTerm,
+	args := AppendEntriesStruct{
+		Term:         r.currentTerm,
 		LeaderID:     r.id,
 		PrevLogIndex: prevLogIdx,
 		PrevLogTerm:  r.getLastLogTerm(),
@@ -230,6 +232,9 @@ func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 		}
 	}
 
+	if r.verbose {
+		log.Printf("appendEntriesRPC result. host: %d, success: %t", hostID, response.Success)
+	}
 	r.incomingChan <- incomingMsg{msgType: appendEntries, hostID: hostID, response: response}
 }
 
