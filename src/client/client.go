@@ -9,15 +9,18 @@ import (
 	"net/rpc"
 	"raft"
 	"strings"
+	"sync"
 	"time"
 )
 
 var hostfile string
 var datafile string
 var recvPort string
+var duration int
 
 // ClientNode represents a client who stores data in the raft cluster
 type ClientNode struct {
+	sync.Mutex
 	retryTimeout  time.Duration
 	hosts         raft.HostMap
 	serialNum     raft.ClientSerialNum
@@ -27,22 +30,22 @@ type ClientNode struct {
 	id            raft.ClientID
 	datafile      string
 	data          []raft.ClientData
+	quitChan      chan bool
 }
 
 func (c *ClientNode) readDataFile() {
-	log.Println("client read data file")
 	contents, err := ioutil.ReadFile(c.datafile)
 	if err != nil {
 		panic(err)
 	}
 	lines := strings.Split(string(contents), "\n")
-	for line := range lines {
+	for _, line := range lines {
 		c.data = append(c.data, raft.ClientData(line))
 	}
 }
 
 // returns true if success
-func (c *ClientNode) sendDataToHost(data raft.ClientData, host raft.HostID) (raft.HostID, bool) {
+func (c *ClientNode) asyncSendDataToHost(data raft.ClientData, host raft.HostID) (raft.HostID, bool) {
 	log.Printf("Sending data: %s to host: %d\n", data, host)
 
 	// Dial the host
@@ -76,8 +79,34 @@ func (c *ClientNode) sendDataToHost(data raft.ClientData, host raft.HostID) (raf
 	}
 }
 
+// returns true if success
+func (c *ClientNode) syncSendDataToHost(data raft.ClientData, host raft.HostID) (raft.HostID, bool) {
+	log.Printf("Sending data: %s to host: %d\n", data, host)
+
+	// Dial the host
+	server, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", c.hosts[host].IP.String(), c.hosts[host].Port))
+	if err != nil {
+		log.Print("Warning: problem dialing host:", err)
+		return raft.HostID(-1), false
+	}
+
+	// Prepare input for server
+	args := &raft.ClientDataStruct{
+		ClientID:        c.id,
+		ClientSerialNum: c.serialNum,
+		Data:            data}
+
+	// Sync RPC
+	response := raft.ClientResponse{}
+	err = server.Call("RaftNode.StoreClientData", args, &response)
+	if err != nil {
+		panic(err)
+	}
+	return response.Leader, response.Success
+}
+
 func (c *ClientNode) trySendLeader(data raft.ClientData, possibleLeader raft.HostID) bool {
-	leader, success := c.sendDataToHost(data, possibleLeader)
+	leader, success := c.syncSendDataToHost(data, possibleLeader)
 	if success {
 		return true
 	} else if leader != -1 { // we were informed of a new leader
@@ -96,9 +125,12 @@ func (c *ClientNode) sendData(data raft.ClientData) {
 	for !done {
 		if c.currentLeader != -1 { // we know who to send to
 			done = c.trySendLeader(data, c.currentLeader)
+			log.Printf("tried sending to known leader: %d, result %t", c.currentLeader, done)
 		} else {
+			log.Printf("Unknown leader...")
 			for possibleLeader := range c.hosts {
 				done = c.trySendLeader(data, possibleLeader)
+				log.Printf("Tried leader %d, result %t", possibleLeader, done)
 				if done {
 					break
 				}
@@ -112,20 +144,37 @@ func (c *ClientNode) protocol() {
 	c.readDataFile()
 
 	for _, data := range c.data {
-		// Prepare next iteration
-		c.serialNum++
-		c.sendData(data)
+		select {
+		case <-c.quitChan:
+			return
+		default:
+			// Prepare next iteration
+			c.serialNum++
+			c.sendData(data)
+		}
+	}
+}
+
+func (c *ClientNode) quitter(quitTime int) {
+	for {
+		select {
+		case <-c.quitChan: // the node decided it should quit
+			return
+		case <-time.After(time.Duration(quitTime) * time.Second): // we decide the node should quit
+			c.quitChan <- true
+			return
+		}
 	}
 }
 
 func init() {
-	// TODO - reusing '-h' here causes panic, probably because of import raft
+	// TODO - redefining the same flags as used in raft causes panic...
 	flag.StringVar(&hostfile, "hostfile", "hostfile.json", "name of hostfile")
 	flag.StringVar(&datafile, "data", "datafile.txt", "name of data file")
+	flag.IntVar(&duration, "duration", 30, "time until node shutdown")
 	fmt.Printf("datafile: %s\n", datafile)
 
 	recvPort = "4321"
-	//TODO gob.register?
 
 	rand.Seed(time.Now().UTC().UnixNano())
 }
@@ -136,6 +185,7 @@ func Client() {
 
 	hosts := make(raft.HostMap)
 	clients := make(raft.ClientMap)
+	quitChan := make(chan bool)
 
 	c := ClientNode{
 		id:            raft.ClientID(raft.ClientID(raft.ResolveAllPeers(hosts, clients, hostfile, false))),
@@ -145,7 +195,10 @@ func Client() {
 		verbose:       true,
 		currentLeader: 0, // Clients start assuming node 0 is leader
 		datafile:      datafile,
+		quitChan:      quitChan,
 		retryTimeout:  time.Duration(1 * time.Second)}
-	c.protocol()
+	go c.protocol()
+	go c.quitter(duration)
+	<-quitChan
 	log.Println("CLIENT FINISHED")
 }

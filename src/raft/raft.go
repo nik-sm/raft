@@ -126,6 +126,42 @@ func (r *RaftNode) shiftToCandidate() {
 func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) error {
 	// NOTE - if we do not yet know leader, client will see reply.leader = -1.
 	// They should wait before recontact, and may recontact us or another random node
+	r.Lock()
+	defer r.Unlock()
+	defer r.executeLog()
+	reply.Leader = r.currentLeader
+	reply.Success = false // by default, assume we will fail
+
+	if r.state != leader {
+		return nil
+	}
+
+	// We are the leader. Attempt to replicate this to all peer logs
+	entry := LogEntry{
+		Term:            r.currentTerm,
+		ClientData:      cd.Data,
+		ClientID:        cd.ClientID,
+		ClientSerialNum: cd.ClientSerialNum}
+
+	// Try to short-circuit based on the client serial num
+	if haveNewer, prevReply := r.haveNewerSerialNum(entry); haveNewer {
+		reply.Success = prevReply.Success
+		// reply.leader = prevReply.leader
+		// NOTE - we do not want to notify about the previous leader, because if it is not us, the client will
+		// just get confused and contact the wrong node next time
+		// this situation only arises if the client's previous attempt was partially successful, but leader crashed before replying
+		return nil
+	}
+
+	r.append(entry)
+	r.multiAppendEntriesRPC([]LogEntry{entry})
+	return nil
+}
+
+// TODO - need a version of StoreClientData that ensures some form of commitment after leader responds to a message?
+func (r *RaftNode) RobustStoreClientData(cd ClientDataStruct, reply *ClientResponse) error {
+	// NOTE - if we do not yet know leader, client will see reply.leader = -1.
+	// They should wait before recontact, and may recontact us or another random node
 	defer r.executeLog()
 	reply.Leader = r.currentLeader
 	reply.Success = false // by default, assume we will fail
@@ -154,15 +190,16 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, reply *ClientResponse) e
 	// TODO - critical change for reliability from POV of client: we need to somehow determine when the change has been committed to the cluster, and THEN respond to the client
 	r.append(entry)
 	majorityStored := false
+Loop:
 	for !majorityStored {
 		select {
 		case <-time.After(r.giveUpTimeout): // leader gives up and reports failure to client
-			break
+			break Loop
 		default:
 			majorityStored = r.multiAppendEntriesRPC([]LogEntry{entry})
 			if majorityStored {
 				reply.Success = true
-				break
+				break Loop
 			}
 		}
 	}
@@ -449,6 +486,7 @@ func (r *RaftNode) quitter(quitTime int) {
 			return
 		case <-time.After(time.Duration(quitTime) * time.Second): // we decide the node should quit
 			r.quitChan <- true
+			return
 		}
 	}
 }

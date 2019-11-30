@@ -9,9 +9,9 @@ import (
 //const electionTimeoutMaximum = time.Duration(300 * time.Millisecond)
 //const heartbeatTimeout = time.Duration(40 * time.Millisecond)
 
-const electionTimeoutMinimum = 3
-const electionTimeoutMaximum = 6
-const timeoutUnits = time.Second
+const electionTimeoutMinimum = 300
+const electionTimeoutMaximum = 600
+const timeoutUnits = time.Millisecond
 const heartbeatTimeout = electionTimeoutMinimum / 2
 
 const fakeHeartbeatTimeout = 10 * electionTimeoutMaximum // TODO - this is a workaround to avoid handling null tickers on followers
