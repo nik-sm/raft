@@ -129,11 +129,11 @@ func (s *StateMachine) apply(le LogEntry) {
 
 func (l Log) String() string {
 	var sb strings.Builder
-	sb.WriteString("log contents: {")
+	sb.WriteString("log contents: [")
 	for i, entry := range l {
-		sb.WriteString(fmt.Sprintf("%d={%s},", i, entry.String()))
+		sb.WriteString(fmt.Sprintf("%d={%s}\n", i, entry.String()))
 	}
-	sb.WriteString("}")
+	sb.WriteString("]")
 	return sb.String()
 }
 
@@ -168,18 +168,6 @@ func NewLogEntry(t Term, cd ClientData, cid ClientID, csn ClientSerialNum, cr Cl
 func (le LogEntry) String() string {
 	return fmt.Sprintf("term: %s, clientData: %s, clientID: %d, clientSerialNum: %d, clientResponse: %s", le.Term.String(), le.ClientData, le.ClientID, le.ClientSerialNum, le.ClientResponse)
 }
-
-// LogAppend must be public because this is encoded by Gob during AppendEntriesRPC
-// NOTE all fields must be public for Gob encoding during RPC
-type LogAppend struct {
-	Idx   LogIndex
-	Entry LogEntry
-}
-
-// LogAppendList describes exactly where to place each of a list of LogEntries.
-// Therefore, we must use a slice of entries that specify their destination index.
-// TODO - due to the log safety properties, can we skip this and just append the list in order?
-type LogAppendList []LogAppend
 
 // RPCResponse carries the reply between raft nodes after an RPC
 type RPCResponse struct {
@@ -254,6 +242,39 @@ type RaftNode struct {
 func (r *RaftNode) String() string {
 	return fmt.Sprintf("Raft Node: id=%d, state=%s, currentTerm=%d, votedFor=%d, hosts={%s}, clients={%s}, votes={%s}, verbose=%t, log={%s}, stateMachine={%s}",
 		r.id, r.state, r.currentTerm, r.votedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.verbose, r.log.String(), r.stateMachine.String())
+}
+
+func stringOneLog(l []LogEntry) string {
+	var sb strings.Builder
+	sb.WriteString("Log. [")
+	for idx, entry := range l {
+		sb.WriteString(fmt.Sprintf("{index=%d, entry=%s\n},", idx, entry.String()))
+	}
+	sb.WriteString("]")
+	return sb.String()
+}
+
+func (r *RaftNode) printLog() {
+	log.Print(stringOneLog(r.log))
+}
+
+func (r *RaftNode) printStateMachine() {
+	var sb strings.Builder
+	sb.WriteString("StateMachine. clientSerialNums: [")
+	for cid, csn := range r.stateMachine.clientSerialNums {
+		sb.WriteString(fmt.Sprintf("{client=%d, serialNum=%d},", cid, csn))
+	}
+	sb.WriteString("].\ncontents: [")
+	for idx, entry := range r.stateMachine.contents {
+		sb.WriteString(fmt.Sprintf("{index=%d, entry=%s},", idx, entry))
+	}
+	sb.WriteString("]")
+	log.Println(sb.String())
+}
+
+func (r *RaftNode) printResults() {
+	r.printLog()
+	r.printStateMachine()
 }
 
 // NewRaftNode is a public constructor for RaftNode

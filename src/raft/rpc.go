@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -129,50 +130,22 @@ type AppendEntriesStruct struct {
 	LeaderID     HostID
 	PrevLogIndex LogIndex
 	PrevLogTerm  Term
-	Entries      LogAppendList
+	Entries      []LogEntry
 	LeaderCommit LogIndex
 }
 
-// TODO - for now, assume that all RPC should be done sync (using "c.Call" instead of "c.Go"). In reality this should be async
-// to make the logic of handling rejections and peer failures more obvious. In order to do async, need waitgroup or shared channel
-//
-// The leader uses this function to append specific entries to the other nodes
-// This lets us reply to a client in realtime to give some feedback after attempting to store their current request
-// Returns true if a majority of nodes appended
-func (r *RaftNode) multiAppendEntriesRPC(entries []LogEntry) bool {
-	if r.verbose {
-		log.Println("multiAppendEntriesRPC")
+func (ae AppendEntriesStruct) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("AEStruct. {Term: %d, LeaderID: %d, PrevLogIndex: %d, PrevLogTerm: %d, LeaderCommit: %d, Entries: [",
+		ae.Term, ae.LeaderID, ae.PrevLogIndex, ae.PrevLogTerm, ae.LeaderCommit))
+	for idx, entry := range ae.Entries {
+		sb.WriteString(fmt.Sprintf("{idx: %d, entry: %s}\n", idx, entry.String()))
 	}
-	// responses := make(map[HostID]bool)
-	for hostID := range r.hosts {
-		if hostID != r.id {
-			go r.appendEntriesRPC(hostID, entries)
-			/* TODO - for storing client data, do we need to collect the responses in a particular way to decide if we received a majority??
-			response := r.appendEntriesRPC(hostID, entries)
-			if response.Term > r.currentTerm { // We fail immediately because we should be a follower
-				log.Printf("Received reply from hostID: %d with higher term: %d and leader: %d", hostID, response.Term, response.LeaderID)
-				r.Lock()
-				r.shiftToFollower(response.Term, response.LeaderID)
-				r.Unlock()
-				return false
-			}
-			// TODO - should we check response.term to see if we need to jump ahead or something?
-			responses[hostID] = response.Success
-			if response.Success {
-				// We know exactly what index this follower's log is at
-				r.nextIndex[hostID]++
-				r.matchIndex[hostID] = r.getLastLogIndex()
-				log.Printf("For follower %d, set nextIndex to: %d, and matchIndex to: %d", hostID, r.nextIndex[hostID], r.matchIndex[hostID])
-			}
-			*/
-		}
-	}
-	return false
-	// return haveMajority(responses)
-	// TODO - if success, update
+	sb.WriteString("]}")
+	return sb.String()
 }
 
-// The leader uses this during heartbeats to slowly bring all other logs up to date, or to maintain leadership.
+// The leader uses this during heartbeats (or after receiving from client) to slowly bring all other logs up to date, and to maintain leadership.
 // For each follower,
 //   if they are up to date, we send an empty message
 //   if they are trailing behind, we send them the log entry at nextIndex[hostID].
@@ -182,19 +155,29 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 		log.Println("heartbeatAppendEntriesRPC")
 	}
 
+	leaderLastLogIdx := r.getLastLogIndex()
+
 	for hostID := range r.hosts {
 		if hostID != r.id {
-			// Get a suitable entry to send to this follower
+
+			// By default, we assume the peer is up-to-date and will get an empty list
+			var entries []LogEntry = make([]LogEntry, 0)
+
+			// Check their "nextIndex" against our last log index
 			theirNextIdx := r.nextIndex[hostID]
-			var entries []LogEntry
-			if int(theirNextIdx) == int(r.getLastLogIndex()) {
-				entries = make([]LogEntry, 0) // empty entries because they are up-to-date
-			} else {
-				theirNextEntry := r.log[theirNextIdx]
-				entries = []LogEntry{theirNextEntry}
+			if leaderLastLogIdx >= theirNextIdx {
+				for i := theirNextIdx; i <= leaderLastLogIdx; i++ {
+					entries = append(entries, r.log[i])
+				}
 			}
 
 			// Send the entries and get response
+			r.Lock()
+			if r.verbose {
+				log.Printf("set indexIncrements for host %d to %d. (previously %d)", hostID, len(entries), r.indexIncrements[hostID])
+			}
+			r.indexIncrements[hostID] = len(entries)
+			r.Unlock()
 			go r.appendEntriesRPC(hostID, entries)
 		}
 	}
@@ -202,22 +185,15 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 
 func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	p := r.hosts[hostID]
-	prevLogIdx := r.getLastLogIndex()
-	logAppends := make([]LogAppend, 0)
-	for i, entry := range entries {
-		logAppends = append(logAppends, LogAppend{Idx: LogIndex(int(prevLogIdx) + i), Entry: entry})
-	}
-
-	r.Lock()
-	r.indexIncrements[hostID] = len(logAppends)
-	r.Unlock()
+	prevLogIdx := max(0, r.nextIndex[hostID]-1)
+	prevLogTerm := r.log[prevLogIdx].Term
 
 	args := AppendEntriesStruct{
 		Term:         r.currentTerm,
 		LeaderID:     r.id,
 		PrevLogIndex: prevLogIdx,
-		PrevLogTerm:  r.getLastLogTerm(),
-		Entries:      logAppends,
+		PrevLogTerm:  prevLogTerm,
+		Entries:      entries,
 		LeaderCommit: r.commitIndex}
 
 	response := RPCResponse{}
@@ -284,6 +260,9 @@ func (r *RaftNode) requestVoteRPC(hostID HostID) {
 			// We crash here, because we do not tolerate RPC errors
 			panic(fmt.Sprintf("requestVoteRPC: %s", err))
 		}
+	}
+	if r.verbose {
+		log.Printf("received vote reply from hostID: %d, response.success=%t", hostID, response.Success)
 	}
 	r.incomingChan <- incomingMsg{msgType: vote, hostID: hostID, response: response}
 }
