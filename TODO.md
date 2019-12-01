@@ -73,3 +73,45 @@
 
 # Logic for applying log entries to state machine
 - When we try to apply a log entry to statemachine, we check the list of previously applied serialNums
+
+
+
+
+
+
+
+# Current issues
+## Robust client interaction
+
+Currently:
+- r0 becomes leader
+- client detects r0 and starts sending there
+- test case disconnects r0 from network
+- r0 continues replying "success=true" to the client
+
+Instead, want:
+- r0 waits for clientReplyTimeout, checking if there exists a majority of nodes with successful storage
+  - if found, replies true
+  - if not found and time runs out, replies false
+
+
+## leader election
+There is still some dispute where a node has just received a heartbeat appendEntriesRPC from leader, resets their tickers, and STILL times out almost immediately
+this looks like might be one of the following:
+- log output is buffered in such a way that the timing is not accurate to the execution time
+- tickers are not being reset properly
+- tickers need to be reset with locks for some reason
+
+
+## state machine
+- not being updated on most nodes yet
+  - Should do: "if commitIndex > lastApplied, increment lastApplied and apply log[lastApplied] to stateMachine"
+- only statemachine should store prevClientResponse (log should not have this)
+
+
+
+# Notes
+- Figure 2 does not specify which to do first:
+  - reply as described in a certain "Receiver implementation" section, or
+  - convert to follower if the term is > than our currentTerm
+  - presumably, we should convert to follower first

@@ -63,23 +63,23 @@ func (e electionResults) String() string {
 
 // StateMachine is the core data structure whose updates we want to be resilient
 type StateMachine struct {
-	clientSerialNums map[ClientID]ClientSerialNum // The most recently executed serial number for each client
-	contents         []ClientData
+	ClientSerialNums map[ClientID]ClientSerialNum // The most recently executed serial number for each client
+	Contents         []ClientData
 }
 
 // NewStateMachine constructs an empty StateMachine
 func NewStateMachine() StateMachine {
-	return StateMachine{clientSerialNums: make(map[ClientID]ClientSerialNum), contents: make([]ClientData, 0)}
+	return StateMachine{ClientSerialNums: make(map[ClientID]ClientSerialNum), Contents: make([]ClientData, 0)}
 }
 
 func (s StateMachine) String() string {
 	var sb strings.Builder
 	sb.WriteString("clientSerialNums: {")
-	for client, serialNum := range s.clientSerialNums {
+	for client, serialNum := range s.ClientSerialNums {
 		sb.WriteString(fmt.Sprintf("%d: %d,", client, serialNum))
 	}
 	sb.WriteString("}. contents: {")
-	for idx, item := range s.contents {
+	for idx, item := range s.Contents {
 		sb.WriteString(fmt.Sprintf("idx: %d, item: %s,", idx, item))
 	}
 	sb.WriteString("}")
@@ -90,7 +90,7 @@ func (s StateMachine) String() string {
 type Log []LogEntry
 
 func (r *RaftNode) haveNewerSerialNum(cid ClientID, csn ClientSerialNum) (bool, ClientResponse) {
-	mostRecent := r.StateMachine.clientSerialNums[cid]
+	mostRecent := r.StateMachine.ClientSerialNums[cid]
 	if int(mostRecent) >= int(csn) {
 		// NOTE - TODO - the client should keep sending the item with this serial num until it lands.
 		// Therefore, if we have seen a higher serial num, the client MUST have successfully submitted this item,
@@ -116,15 +116,15 @@ func (r *RaftNode) append(le LogEntry) {
 }
 
 func (s *StateMachine) apply(le LogEntry) {
-	mostRecentSeen := s.clientSerialNums[le.ClientID]
+	mostRecentSeen := s.ClientSerialNums[le.ClientID]
 	if int(mostRecentSeen) >= int(le.ClientSerialNum) {
 		log.Printf("Log entry is stale/duplicated, no change to State Machine: %s", le.String())
 		return
 	}
-	s.clientSerialNums[le.ClientID] = le.ClientSerialNum
+	s.ClientSerialNums[le.ClientID] = le.ClientSerialNum
 	// NOTE - if we used a more sophisticated type for ClientData,
 	// this is where we would need logic to apply the data to the State Machine
-	s.contents = append(s.contents, le.ClientData)
+	s.Contents = append(s.Contents, le.ClientData)
 }
 
 func (l Log) String() string {
@@ -226,17 +226,17 @@ type RaftNode struct {
 	indexIncrements map[HostID]int      // length of the entries list we have sent to each peer
 
 	// Convenience variables
-	sync.Mutex                       // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()
-	incomingChan    chan incomingMsg // for collecting and reacting to async RPC responses
-	hosts           HostMap          // look up table of peer id, ip, port, hostname for other raft nodes
-	clients         ClientMap        // look up table of peer id, ip, port, hostname for clients
-	electionTicker  time.Ticker      // timeouts start each election
-	timeoutUnits    time.Duration    // units to use for election timeout
-	heartbeatTicker time.Ticker      // Leader-only ticker for sending heartbeats during idle periods
-	giveUpTimeout   time.Duration    // during client data storage interaction, time before giving up and replying failure
-	votes           electionResults  // temp storage for election results
-	quitChan        chan bool        // for cleaning up spawned goroutines
-	verbose         bool
+	sync.Mutex                          // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()
+	incomingChan       chan incomingMsg // for collecting and reacting to async RPC responses
+	hosts              HostMap          // look up table of peer id, ip, port, hostname for other raft nodes
+	clients            ClientMap        // look up table of peer id, ip, port, hostname for clients
+	electionTicker     time.Ticker      // timeouts start each election
+	timeoutUnits       time.Duration    // units to use for election timeout
+	heartbeatTicker    time.Ticker      // Leader-only ticker for sending heartbeats during idle periods
+	clientReplyTimeout time.Duration    // during client data storage interaction, time before giving up and replying failure
+	votes              electionResults  // temp storage for election results
+	quitChan           chan bool        // for cleaning up spawned goroutines
+	verbose            bool
 }
 
 func (r *RaftNode) String() string {
@@ -261,11 +261,11 @@ func (r *RaftNode) printLog() {
 func (r *RaftNode) printStateMachine() {
 	var sb strings.Builder
 	sb.WriteString("StateMachine. clientSerialNums: [")
-	for cid, csn := range r.StateMachine.clientSerialNums {
+	for cid, csn := range r.StateMachine.ClientSerialNums {
 		sb.WriteString(fmt.Sprintf("{client=%d, serialNum=%d},", cid, csn))
 	}
 	sb.WriteString("].\ncontents: [")
-	for idx, entry := range r.StateMachine.contents {
+	for idx, entry := range r.StateMachine.Contents {
 		sb.WriteString(fmt.Sprintf("{index=%d, entry=%s},", idx, entry))
 	}
 	sb.WriteString("]")
@@ -307,20 +307,20 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 		nextIndex:  make(map[HostID]LogIndex),
 		matchIndex: make(map[HostID]LogIndex),
 
-		incomingChan:  make(chan incomingMsg),
-		hosts:         hosts,
-		clients:       clients,
-		timeoutUnits:  timeoutUnits,
-		giveUpTimeout: 2 * heartbeatTimeout * timeoutUnits, // TODO - is this a reasonable timeout?
-		votes:         make(electionResults),
-		quitChan:      quitChan,
-		verbose:       verbose}
+		incomingChan:       make(chan incomingMsg),
+		hosts:              hosts,
+		clients:            clients,
+		timeoutUnits:       timeoutUnits,
+		clientReplyTimeout: 2 * heartbeatTimeout * timeoutUnits, // TODO - is this a reasonable timeout?
+		votes:              make(electionResults),
+		quitChan:           quitChan,
+		verbose:            verbose}
 
 	// Initialize State Machine
 	for clientID := range clients {
-		r.StateMachine.clientSerialNums[clientID] = -1
+		r.StateMachine.ClientSerialNums[clientID] = -1
 	}
-	r.StateMachine.contents = append(r.StateMachine.contents, "STATE_MACHINE_START")
+	r.StateMachine.Contents = append(r.StateMachine.Contents, "STATE_MACHINE_START")
 	return &r
 }
 

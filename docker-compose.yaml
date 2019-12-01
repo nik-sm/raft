@@ -13,7 +13,7 @@ services:
       - raft-network
     volumes:
       - type: bind
-        source: ./raft_node_persistence
+        source: ./persistence
         target: /persistence
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
@@ -29,7 +29,7 @@ services:
       - raft-network
     volumes:
       - type: bind
-        source: ./raft_node_persistence
+        source: ./persistence
         target: /persistence
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
@@ -45,7 +45,7 @@ services:
       - raft-network
     volumes:
       - type: bind
-        source: ./raft_node_persistence
+        source: ./persistence
         target: /persistence
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
@@ -60,7 +60,7 @@ services:
     networks:
       - raft-network
     entrypoint: "client"
-    command: "-hostfile=hostfile.json -data=datafile.txt -v=${RAFT_VERBOSE}"
+    command: "-hostfile=hostfile.json -data=datafile.txt -v=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
       
 
 networks:

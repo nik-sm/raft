@@ -176,11 +176,9 @@ func (r *RaftNode) executeLog() {
 	// TODO - this function should be idempotent and safe to apply often
 	// TODO - need some stateMachine variable that represents a set of applied log entries
 	// TODO - update commit index
-	if r.state == leader {
-		for r.commitIndex > r.lastApplied {
-			r.lastApplied++
-			r.StateMachine.apply(r.Log[r.lastApplied])
-		}
+	for r.commitIndex > r.lastApplied {
+		r.lastApplied++
+		r.StateMachine.apply(r.Log[r.lastApplied])
 	}
 }
 

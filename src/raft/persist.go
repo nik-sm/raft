@@ -3,15 +3,17 @@ package raft
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 )
 
-var raft_storage string = "/persistence/raft_node.%d.json"
+var raftStorage string = "/persistence/raft_node.%d.json"
 
 func (r *RaftNode) persistState() {
-	f, err := os.Create(fmt.Sprintf(raft_storage, r.id))
+	f, err := os.Create(fmt.Sprintf(raftStorage, r.id))
 	if err != nil {
-		panic(err)
+		log.Println("WARNING - cannot persistState:", err)
+		return
 	}
 	enc := json.NewEncoder(f)
 	err = enc.Encode(r)
@@ -22,10 +24,11 @@ func (r *RaftNode) persistState() {
 }
 
 func (r *RaftNode) recoverFromDisk() {
-	f, err := os.Open(fmt.Sprintf(raft_storage, r.id))
+	f, err := os.Open(fmt.Sprintf(raftStorage, r.id))
 	if err != nil {
 		// TODO - check if exists, otherwise skip
-		panic(err)
+		log.Println("WARNING - cannot persistState:", err)
+		return
 	}
 	dec := json.NewDecoder(f)
 	var r2 RaftNode

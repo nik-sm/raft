@@ -28,11 +28,11 @@ func mockRaftNode(vTerm Term, vLastLogTerm Term, vLastLogIdx int, vLeader HostID
 		nil)             // Empty 'quit' channel
 
 	// Set voter attributes as specified
-	voter.currentTerm = vTerm
-	voter.log = log
+	voter.CurrentTerm = vTerm
+	voter.Log = log
 	voter.verbose = false
 	voter.currentLeader = vLeader
-	voter.votedFor = vLeader
+	voter.VotedFor = vLeader
 
 	return voter
 }
@@ -50,11 +50,11 @@ func mockRaftNodeNoLog(vTerm Term, vLeader HostID) *RaftNode {
 		nil)             // Empty 'quit' channel
 
 	// Set voter attributes as specified
-	voter.currentTerm = vTerm
-	voter.log = log
+	voter.CurrentTerm = vTerm
+	voter.Log = log
 	voter.verbose = false
 	voter.currentLeader = vLeader
-	voter.votedFor = vLeader
+	voter.VotedFor = vLeader
 
 	return voter
 }
@@ -701,7 +701,7 @@ func setupAppendEntriesTest() (*RaftNode, []LogEntry) {
 		followerLog = append(followerLog, a)
 	}
 	followerLog = append(followerLog, b)
-	follower.log = followerLog
+	follower.Log = followerLog
 
 	// Setup leaderLog
 	leaderLog := make([]LogEntry, 0)
@@ -732,7 +732,7 @@ func setupAppendEntriesTestWithSplice(prevIdx int) (*RaftNode, []LogEntry, []Log
 	for i := 0; i <= 6; i++ {
 		followerLog = append(followerLog, a)
 	}
-	follower.log = followerLog
+	follower.Log = followerLog
 
 	b := LogEntry{
 		Term:       2,
@@ -820,7 +820,7 @@ func ExampleRaftNode_AppendEntries_extendAndDeleteSuffixSucceeds() {
 
 	follower.AppendEntries(ae, &response)
 
-	fmt.Println(sameLog(follower.log, resultLog))
+	fmt.Println(sameLog(follower.Log, resultLog))
 	// Output: true
 }
 
@@ -839,6 +839,63 @@ func ExampleRaftNode_AppendEntries_unusedIdxSucceeds() {
 	response := RPCResponse{}
 
 	follower.AppendEntries(ae, &response)
-	fmt.Println(sameLog(follower.log, resultLog))
+	fmt.Println(sameLog(follower.Log, resultLog))
 	// Output: true
+}
+
+func ExampleRaftNode_AppendEntries_validHeartbeatSucceeds() {
+	prevLogIdx := 6
+	follower, _, _ := setupAppendEntriesTestWithSplice(prevLogIdx)
+
+	ae := AppendEntriesStruct{
+		Term:         5,
+		LeaderID:     2,
+		PrevLogIndex: LogIndex(prevLogIdx), // follower has this position
+		PrevLogTerm:  1,                    // matches follower's term at that position
+		Entries:      make([]LogEntry, 0),
+		LeaderCommit: 8}
+
+	response := RPCResponse{}
+
+	follower.AppendEntries(ae, &response)
+	fmt.Println(response.Success)
+	// Output: true
+}
+
+func ExampleRaftNode_AppendEntries_invalidHeartbeatPrevLogTermFails() {
+	prevLogIdx := 6
+	follower, _, _ := setupAppendEntriesTestWithSplice(prevLogIdx)
+
+	ae := AppendEntriesStruct{
+		Term:         5,
+		LeaderID:     2,
+		PrevLogIndex: LogIndex(prevLogIdx), // follower has this position
+		PrevLogTerm:  0,                    // does NOT match follower's term at that position
+		Entries:      make([]LogEntry, 0),
+		LeaderCommit: 8}
+
+	response := RPCResponse{}
+
+	follower.AppendEntries(ae, &response)
+	fmt.Println(response.Success)
+	// Output: false
+}
+
+func ExampleRaftNode_AppendEntries_invalidHeartbeatPrevLogIdxFails() {
+	prevLogIdx := 6
+	follower, _, _ := setupAppendEntriesTestWithSplice(prevLogIdx)
+
+	ae := AppendEntriesStruct{
+		Term:         5,
+		LeaderID:     2,
+		PrevLogIndex: LogIndex(prevLogIdx + 1), // follower has this position
+		PrevLogTerm:  1,                        // does NOT match follower's term at that position
+		Entries:      make([]LogEntry, 0),
+		LeaderCommit: 8}
+
+	response := RPCResponse{}
+
+	follower.AppendEntries(ae, &response)
+	fmt.Println(response.Success)
+	// Output: false
 }
