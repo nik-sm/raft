@@ -37,29 +37,18 @@ func haveMajority(votes map[HostID]bool, label string) bool {
 	return nFound >= nReq
 }
 
-func (r *RaftNode) persistState() {
-	log.Println("TODO - persistState")
-	// Save: currentTerm, votedFor, log
-}
-
-func (r *RaftNode) recoverFromDisk() {
-	log.Println("TODO - recoverFromDisk")
-	// right at the restart of the node, check the standard place for
-	// a persisted state object. If exists, apply it, otherwise, just startup normally
-}
-
 // NOTE - important that for all the shiftTo...() functions, we must first set our state variable
 func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	if r.verbose {
 		log.Printf("############  SHIFT TO FOLLOWER, Term: %d, LeaderID: %d", t, leaderID)
 	}
 	r.state = follower
-	r.currentTerm = t
+	r.CurrentTerm = t
 	r.currentLeader = leaderID
 	r.nextIndex = nil
 	r.matchIndex = nil
 	r.indexIncrements = nil
-	r.votedFor = -1
+	r.VotedFor = -1
 }
 
 // NOTE - We only become leader by doing shiftToCandidate() and voting for ourself
@@ -68,7 +57,7 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 func (r *RaftNode) shiftToLeader() {
 	defer r.heartbeatAppendEntriesRPC() // We need to confirm leadership with all nodes
 	if r.verbose {
-		log.Printf("############  SHIFT TO LEADER. Term: %d", r.currentTerm)
+		log.Printf("############  SHIFT TO LEADER. Term: %d", r.CurrentTerm)
 	}
 	r.state = leader
 	r.currentLeader = r.id
@@ -103,8 +92,8 @@ func (r *RaftNode) shiftToCandidate() {
 		}
 	}
 	r.state = candidate
-	r.currentTerm++
-	r.votedFor = r.id
+	r.CurrentTerm++
+	r.VotedFor = r.id
 }
 
 // StoreClientData allows a client to send data to the raft cluster via RPC for storage
@@ -117,6 +106,7 @@ func (r *RaftNode) shiftToCandidate() {
 func (r *RaftNode) StoreClientData(cd ClientDataStruct, response *ClientResponse) error {
 	// NOTE - if we do not yet know leader, client will see response.leader = -1.
 	// They should wait before recontact, and may recontact us or another random node
+	defer r.persistState()
 	defer r.executeLog()
 	response.Leader = r.currentLeader
 	response.Success = false // by default, assume we will fail
@@ -125,15 +115,8 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, response *ClientResponse
 		return nil
 	}
 
-	// We are the leader. Attempt to replicate this to all peer logs
-	entry := LogEntry{
-		Term:            r.currentTerm,
-		ClientData:      cd.Data,
-		ClientID:        cd.ClientID,
-		ClientSerialNum: cd.ClientSerialNum}
-
 	// Try to short-circuit based on the client serial num
-	if haveNewer, prevReply := r.haveNewerSerialNum(entry); haveNewer {
+	if haveNewer, prevReply := r.haveNewerSerialNum(cd.ClientID, cd.ClientSerialNum); haveNewer {
 		response.Success = prevReply.Success
 		// response.leader = prevReply.leader
 		// NOTE - we do not want to notify about the previous leader, because if it is not us, the client will
@@ -142,9 +125,20 @@ func (r *RaftNode) StoreClientData(cd ClientDataStruct, response *ClientResponse
 		return nil
 	}
 
-	r.append(entry)
-	go r.heartbeatAppendEntriesRPC()
+	// We are the leader and this is a new entry. Attempt to replicate this to all peer logs
 	response.Success = true
+	entry := LogEntry{
+		Term:            r.CurrentTerm,
+		ClientData:      cd.Data,
+		ClientID:        cd.ClientID,
+		ClientSerialNum: cd.ClientSerialNum,
+		ClientResponse: ClientResponse{
+			Success: response.Success,
+			Leader:  r.id}}
+	r.append(entry)
+
+	go r.heartbeatAppendEntriesRPC()
+
 	return nil
 }
 
@@ -159,8 +153,8 @@ func (r *RaftNode) updateCommitIndex() {
 	//   set commitIndex = N
 	defer r.executeLog()
 	for n := r.commitIndex + 1; n <= r.getLastLogIndex(); n++ {
-		if r.log[n].Term != r.currentTerm {
-			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.log[n].String())
+		if r.Log[n].Term != r.CurrentTerm {
+			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.Log[n].String())
 			continue
 		}
 		peersAtThisLevel := make(map[HostID]bool)
@@ -185,7 +179,7 @@ func (r *RaftNode) executeLog() {
 	if r.state == leader {
 		for r.commitIndex > r.lastApplied {
 			r.lastApplied++
-			r.stateMachine.apply(r.log[r.lastApplied])
+			r.StateMachine.apply(r.Log[r.lastApplied])
 		}
 	}
 }
@@ -198,10 +192,10 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, response *RPCResponse) 
 	defer r.Unlock()
 	if r.verbose {
 		log.Printf("AppendEntries(). ae: %s", ae.String())
-		log.Printf("My log: %s", r.log.String())
+		log.Printf("My log: %s", r.Log.String())
 	}
 
-	response.Term = r.currentTerm
+	response.Term = r.CurrentTerm
 
 	if ae.LeaderID == r.currentLeader {
 		log.Println("AppendEntries from leader - reset tickers")
@@ -209,11 +203,11 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, response *RPCResponse) 
 	}
 
 	// Reply false if term < currentTerm
-	if ae.Term < r.currentTerm {
+	if ae.Term < r.CurrentTerm {
 		if r.verbose {
 			log.Println("AE from stale term")
 		}
-		response.Term = r.currentTerm
+		response.Term = r.CurrentTerm
 		response.Success = false
 		return nil
 	}
@@ -222,12 +216,12 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, response *RPCResponse) 
 	r.shiftToFollower(ae.Term, ae.LeaderID)
 
 	// Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
-	if int(ae.PrevLogIndex) >= len(r.log) || // index out-of-bounds
-		r.log[ae.PrevLogIndex].Term != ae.PrevLogTerm {
+	if int(ae.PrevLogIndex) >= len(r.Log) || // index out-of-bounds
+		r.Log[ae.PrevLogIndex].Term != ae.PrevLogTerm {
 		if r.verbose {
 			log.Println("my PrevLogTerm does not match theirs")
 		}
-		response.Term = r.currentTerm
+		response.Term = r.CurrentTerm
 		response.Success = false
 		return nil
 	}
@@ -239,21 +233,21 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, response *RPCResponse) 
 	}
 	offset := int(ae.PrevLogIndex) + 1
 	for i, entry := range ae.Entries {
-		if i+offset >= len(r.log) { // We certainly have no conflict
+		if i+offset >= len(r.Log) { // We certainly have no conflict
 			if r.verbose {
 				log.Printf("Apply without conflict: index=%d", i+offset)
 			}
 			r.append(entry)
 		} else {
-			if r.log[i+offset].Term != ae.Entries[i].Term { // We have conflicting entry
+			if r.Log[i+offset].Term != ae.Entries[i].Term { // We have conflicting entry
 				if r.verbose {
-					log.Printf("Conflict - delete suffix! (we have term=%d, they have term=%d). Delete our log from index=%d onwards.", r.log[i+offset].Term, ae.Entries[i].Term, i+offset)
+					log.Printf("Conflict - delete suffix! (we have term=%d, they have term=%d). Delete our log from index=%d onwards.", r.Log[i+offset].Term, ae.Entries[i].Term, i+offset)
 				}
-				r.log = r.log[:i+offset] // delete the existing entry and all that follow it
+				r.Log = r.Log[:i+offset] // delete the existing entry and all that follow it
 				r.append(entry)          // append the current entry
-				log.Printf("\n\nLog: %s\n\n", stringOneLog(r.log))
-			} else if r.log[i+offset] != entry {
-				log.Printf("\nOURS: %s\n\nTHEIRS: %s", r.log[i+offset].String(), entry.String())
+				log.Printf("\n\nLog: %s\n\n", stringOneLog(r.Log))
+			} else if r.Log[i+offset] != entry {
+				log.Printf("\nOURS: %s\n\nTHEIRS: %s", r.Log[i+offset].String(), entry.String())
 				panic("log safety violation occurred somewhere")
 			}
 		}
@@ -301,34 +295,34 @@ func (r *RaftNode) Vote(rv RequestVoteStruct, response *RPCResponse) error {
 
 	defer r.persistState()
 
-	response.Term = r.currentTerm
+	response.Term = r.CurrentTerm
 
 	myLastLogTerm := r.getLastLogTerm()
 	myLastLogIdx := r.getLastLogIndex()
 
 	if r.verbose {
 		log.Printf("RequestVoteStruct: %s. \nMy node: term: %d, votedFor %d, lastLogTerm: %d, lastLogIdx: %d",
-			rv.String(), r.currentTerm, r.votedFor, myLastLogTerm, myLastLogIdx)
+			rv.String(), r.CurrentTerm, r.VotedFor, myLastLogTerm, myLastLogIdx)
 	}
 
 	looksEligible := r.CandidateLooksEligible(rv.LastLogIdx, rv.LastLogTerm)
 
-	if rv.Term > r.currentTerm {
+	if rv.Term > r.CurrentTerm {
 		r.shiftToFollower(rv.Term, HostID(-1)) // We do not yet know who is leader for this term
 	}
 
-	if rv.Term < r.currentTerm {
+	if rv.Term < r.CurrentTerm {
 		if r.verbose {
 			log.Println("RV from prior term - do not grant vote")
 		}
 		response.Success = false
-	} else if (r.votedFor == -1 || r.votedFor == rv.CandidateID) && looksEligible {
+	} else if (r.VotedFor == -1 || r.VotedFor == rv.CandidateID) && looksEligible {
 		if r.verbose {
 			log.Println("Grant vote")
 		}
 		r.resetTickers()
 		response.Success = true
-		r.votedFor = rv.CandidateID
+		r.VotedFor = rv.CandidateID
 	} else {
 		if r.verbose {
 			log.Println("Do not grant vote")
@@ -340,14 +334,14 @@ func (r *RaftNode) Vote(rv RequestVoteStruct, response *RPCResponse) error {
 }
 
 func (r *RaftNode) getLastLogIndex() LogIndex {
-	if len(r.log) > 0 {
-		return LogIndex(len(r.log) - 1)
+	if len(r.Log) > 0 {
+		return LogIndex(len(r.Log) - 1)
 	}
 	return LogIndex(0)
 }
 
 func (r *RaftNode) getLastLogTerm() Term {
-	return Term(r.log[int(r.getLastLogIndex())].Term)
+	return Term(r.Log[int(r.getLastLogIndex())].Term)
 }
 
 func max(x LogIndex, y LogIndex) LogIndex {
@@ -372,7 +366,7 @@ func (r *RaftNode) protocol() {
 	for {
 		select {
 		case m := <-r.incomingChan:
-			if m.response.Term > r.currentTerm {
+			if m.response.Term > r.CurrentTerm {
 				if r.verbose {
 					log.Printf("Received reply from hostID %d with higher term: %d and leaderid: %d", m.hostID, m.response.Term, m.response.LeaderID)
 				}

@@ -193,7 +193,7 @@ func Client() {
 		clients:       clients,
 		serialNum:     0,
 		verbose:       true,
-		currentLeader: 0, // Clients start assuming node 0 is leader
+		currentLeader: -1, // Clients start assuming node 0 is leader
 		datafile:      datafile,
 		quitChan:      quitChan,
 		retryTimeout:  time.Duration(1 * time.Second)}

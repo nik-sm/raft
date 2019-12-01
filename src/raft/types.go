@@ -89,21 +89,21 @@ func (s StateMachine) String() string {
 // Log holds LogEntries and
 type Log []LogEntry
 
-func (r *RaftNode) haveNewerSerialNum(le LogEntry) (bool, ClientResponse) {
-	mostRecent := r.stateMachine.clientSerialNums[le.ClientID]
-	if int(mostRecent) >= int(le.ClientSerialNum) {
+func (r *RaftNode) haveNewerSerialNum(cid ClientID, csn ClientSerialNum) (bool, ClientResponse) {
+	mostRecent := r.StateMachine.clientSerialNums[cid]
+	if int(mostRecent) >= int(csn) {
 		// NOTE - TODO - the client should keep sending the item with this serial num until it lands.
 		// Therefore, if we have seen a higher serial num, the client MUST have successfully submitted this item,
 		// and it will exist in our log
 		// NOTE - if we do log compaction, we might have thrown away the previous log entry
-		return true, r.log.getPrevResponse(le)
+		return true, r.Log.getPrevResponse(cid, csn)
 	}
 	return false, ClientResponse{}
 }
 
-func (l Log) getPrevResponse(le LogEntry) ClientResponse {
+func (l Log) getPrevResponse(cid ClientID, csn ClientSerialNum) ClientResponse {
 	for _, entry := range l {
-		if entry.ClientID == le.ClientID && entry.ClientSerialNum == le.ClientSerialNum {
+		if entry.ClientID == cid && entry.ClientSerialNum == csn {
 			return entry.ClientResponse
 		}
 	}
@@ -111,7 +111,7 @@ func (l Log) getPrevResponse(le LogEntry) ClientResponse {
 }
 
 func (r *RaftNode) append(le LogEntry) {
-	r.log = append(r.log, le)
+	r.Log = append(r.Log, le)
 	r.executeLog()
 }
 
@@ -208,11 +208,11 @@ type RaftNode struct {
 	id    HostID        // id of this node
 	state raftNodeState // follower, leader, or candidate
 
-	// Persistent State
-	currentTerm  Term   // latest term server has seen
-	votedFor     HostID // ID of candidate that received vote in current term (or -1 if none)
-	log          Log
-	stateMachine StateMachine
+	// Exported for persistent storage
+	CurrentTerm  Term   // latest term server has seen
+	VotedFor     HostID // ID of candidate that received vote in current term (or -1 if none)
+	Log          Log
+	StateMachine StateMachine
 
 	// Volatile State
 	commitIndex   LogIndex
@@ -241,7 +241,7 @@ type RaftNode struct {
 
 func (r *RaftNode) String() string {
 	return fmt.Sprintf("Raft Node: id=%d, state=%s, currentTerm=%d, votedFor=%d, hosts={%s}, clients={%s}, votes={%s}, verbose=%t, log={%s}, stateMachine={%s}",
-		r.id, r.state, r.currentTerm, r.votedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.verbose, r.log.String(), r.stateMachine.String())
+		r.id, r.state, r.CurrentTerm, r.VotedFor, r.hosts.String(), r.clients.String(), r.votes.String(), r.verbose, r.Log.String(), r.StateMachine.String())
 }
 
 func stringOneLog(l []LogEntry) string {
@@ -255,17 +255,17 @@ func stringOneLog(l []LogEntry) string {
 }
 
 func (r *RaftNode) printLog() {
-	log.Print(stringOneLog(r.log))
+	log.Print(stringOneLog(r.Log))
 }
 
 func (r *RaftNode) printStateMachine() {
 	var sb strings.Builder
 	sb.WriteString("StateMachine. clientSerialNums: [")
-	for cid, csn := range r.stateMachine.clientSerialNums {
+	for cid, csn := range r.StateMachine.clientSerialNums {
 		sb.WriteString(fmt.Sprintf("{client=%d, serialNum=%d},", cid, csn))
 	}
 	sb.WriteString("].\ncontents: [")
-	for idx, entry := range r.stateMachine.contents {
+	for idx, entry := range r.StateMachine.contents {
 		sb.WriteString(fmt.Sprintf("{index=%d, entry=%s},", idx, entry))
 	}
 	sb.WriteString("]")
@@ -294,10 +294,11 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 		id:    id,
 		state: follower,
 
-		currentTerm:  0,
-		votedFor:     -1,
-		log:          initialLog,
-		stateMachine: initialSM,
+		// Exported for persistent storage
+		CurrentTerm:  0,
+		VotedFor:     -1,
+		Log:          initialLog,
+		StateMachine: initialSM,
 
 		commitIndex:   0,
 		lastApplied:   0,
@@ -317,9 +318,9 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 
 	// Initialize State Machine
 	for clientID := range clients {
-		r.stateMachine.clientSerialNums[clientID] = -1
+		r.StateMachine.clientSerialNums[clientID] = -1
 	}
-	r.stateMachine.contents = append(r.stateMachine.contents, "STATE_MACHINE_START")
+	r.StateMachine.contents = append(r.StateMachine.contents, "STATE_MACHINE_START")
 	return &r
 }
 

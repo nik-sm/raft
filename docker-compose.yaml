@@ -11,6 +11,10 @@ services:
       context: .
     networks:
       - raft-network
+    volumes:
+      - type: bind
+        source: ./raft_node_persistence
+        target: /persistence
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-agent-1: 
@@ -23,6 +27,10 @@ services:
       context: .
     networks:
       - raft-network
+    volumes:
+      - type: bind
+        source: ./raft_node_persistence
+        target: /persistence
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-agent-2: 
@@ -35,6 +43,10 @@ services:
       context: .
     networks:
       - raft-network
+    volumes:
+      - type: bind
+        source: ./raft_node_persistence
+        target: /persistence
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-client-0:

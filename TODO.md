@@ -5,11 +5,6 @@
 
 
 # TODO
-- need layer of indirection so that leader can collect responses before
-  responding to client
-  - need to balance client's timeout, leader's timeout, and response times from
-    other raft nodes
-- resolve needs to also locate the client node
 
 - "servers retry RPCs if they do not receive a response in a timely manner, and
   they issue RPCs in parallel for best performance"

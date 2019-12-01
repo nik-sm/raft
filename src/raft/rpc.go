@@ -167,7 +167,7 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 			theirNextIdx := r.nextIndex[hostID]
 			if leaderLastLogIdx >= theirNextIdx {
 				for i := theirNextIdx; i <= leaderLastLogIdx; i++ {
-					entries = append(entries, r.log[i])
+					entries = append(entries, r.Log[i])
 				}
 			}
 
@@ -186,10 +186,10 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	p := r.hosts[hostID]
 	prevLogIdx := max(0, r.nextIndex[hostID]-1)
-	prevLogTerm := r.log[prevLogIdx].Term
+	prevLogTerm := r.Log[prevLogIdx].Term
 
 	args := AppendEntriesStruct{
-		Term:         r.currentTerm,
+		Term:         r.CurrentTerm,
 		LeaderID:     r.id,
 		PrevLogIndex: prevLogIdx,
 		PrevLogTerm:  prevLogTerm,
@@ -200,7 +200,7 @@ func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	conn, err := rpc.Dial("tcp", fmt.Sprintf("%s:%d", p.IP, p.Port))
 	if err != nil {
 		log.Printf("WARNING: problem dialing peer: %s, err: %s", p.String(), err)
-		response = RPCResponse{Term: r.currentTerm, Success: false, LeaderID: r.currentLeader}
+		response = RPCResponse{Term: r.CurrentTerm, Success: false, LeaderID: r.currentLeader}
 	} else {
 		err = conn.Call("RaftNode.AppendEntries", args, &response)
 		if err != nil {
@@ -242,7 +242,7 @@ func (r *RaftNode) multiRequestVoteRPC() {
 func (r *RaftNode) requestVoteRPC(hostID HostID) {
 	p := r.hosts[hostID]
 	args := RequestVoteStruct{
-		Term:        r.currentTerm,
+		Term:        r.CurrentTerm,
 		CandidateID: r.id,
 		LastLogIdx:  r.getLastLogIndex(),
 		LastLogTerm: r.getLastLogTerm()}
@@ -253,7 +253,7 @@ func (r *RaftNode) requestVoteRPC(hostID HostID) {
 	if err != nil {
 		// We do not crash here, because we don't care if that peer might be down
 		log.Printf("WARNING: problem dialing peer: %s. err: %s", p.String(), err)
-		response = RPCResponse{Term: r.currentTerm, Success: false, LeaderID: r.currentLeader}
+		response = RPCResponse{Term: r.CurrentTerm, Success: false, LeaderID: r.currentLeader}
 	} else {
 		err = conn.Call("RaftNode.Vote", args, &response)
 		if err != nil {
