@@ -198,6 +198,10 @@ type incomingMsg struct {
 	response RPCResponse // Contents of their response
 }
 
+func (m *incomingMsg) String() string {
+	return fmt.Sprintf("incoming msg. msgType=%d, hostID=%d, response={%s}", m.msgType, m.hostID, m.response.String())
+}
+
 const (
 	appendEntries msgType = iota
 	vote          msgType = iota
@@ -246,7 +250,7 @@ func (r *RaftNode) String() string {
 
 func stringOneLog(l []LogEntry) string {
 	var sb strings.Builder
-	sb.WriteString("Log. [")
+	sb.WriteString("Log. \n[")
 	for idx, entry := range l {
 		sb.WriteString(fmt.Sprintf("{index=%d, entry=%s\n},", idx, entry.String()))
 	}
@@ -260,13 +264,13 @@ func (r *RaftNode) printLog() {
 
 func (r *RaftNode) printStateMachine() {
 	var sb strings.Builder
-	sb.WriteString("StateMachine. clientSerialNums: [")
+	sb.WriteString("StateMachine. \nclientSerialNums: [")
 	for cid, csn := range r.StateMachine.ClientSerialNums {
 		sb.WriteString(fmt.Sprintf("{client=%d, serialNum=%d},", cid, csn))
 	}
 	sb.WriteString("].\ncontents: [")
 	for idx, entry := range r.StateMachine.Contents {
-		sb.WriteString(fmt.Sprintf("{index=%d, entry=%s},", idx, entry))
+		sb.WriteString(fmt.Sprintf("{index=%d, entry=%s},\n", idx, entry))
 	}
 	sb.WriteString("]")
 	log.Println(sb.String())

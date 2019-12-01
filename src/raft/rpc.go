@@ -150,6 +150,8 @@ func (ae AppendEntriesStruct) String() string {
 //   if they are up to date, we send an empty message
 //   if they are trailing behind, we send them the log entry at nextIndex[hostID].
 //     if they reject this entry, we decrement their index
+// TODO - this function should have some locking (we don't want to send heartbeats if we are no longer leader!)
+// 		  however, there seems to be a deadlock when adding locks here
 func (r *RaftNode) heartbeatAppendEntriesRPC() {
 	if r.verbose {
 		log.Println("heartbeatAppendEntriesRPC")
@@ -172,12 +174,12 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 			}
 
 			// Send the entries and get response
-			r.Lock()
+			// r.Lock()
 			if r.verbose {
 				log.Printf("set indexIncrements for host %d to %d. (previously %d)", hostID, len(entries), r.indexIncrements[hostID])
 			}
 			r.indexIncrements[hostID] = len(entries)
-			r.Unlock()
+			// r.Unlock()
 			go r.appendEntriesRPC(hostID, entries)
 		}
 	}

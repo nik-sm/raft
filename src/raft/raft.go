@@ -151,7 +151,6 @@ func (r *RaftNode) updateCommitIndex() {
 	//   3) log[N].term == currentTerm
 	// Then:
 	//   set commitIndex = N
-	defer r.executeLog()
 	for n := r.commitIndex + 1; n <= r.getLastLogIndex(); n++ {
 		if r.Log[n].Term != r.CurrentTerm {
 			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.Log[n].String())
@@ -287,6 +286,8 @@ func (r *RaftNode) CandidateLooksEligible(candLastLogIdx LogIndex, candLastLogTe
 //    (we've already voted for ourselves!)
 //	3) if we've been offline, and wakeup and try to get votes: we get rejections, that also tell us the new term, and we immediately jump to that term as a follower
 func (r *RaftNode) Vote(rv RequestVoteStruct, response *RPCResponse) error {
+	r.Lock()
+	defer r.Unlock()
 	if r.verbose {
 		log.Println("Vote()")
 	}
@@ -356,7 +357,7 @@ func min(x LogIndex, y LogIndex) LogIndex {
 	return y
 }
 
-// Main leader Election Procedure
+// Main Raft protocol
 func (r *RaftNode) protocol() {
 	r.resetTickers()
 	log.Printf("Begin Protocol. verbose: %t", r.verbose)
@@ -374,15 +375,17 @@ func (r *RaftNode) protocol() {
 			switch m.msgType {
 			case vote:
 				log.Printf("processing vote reply, hostID=%d: response=%s", m.hostID, m.response.String())
+				r.Lock()
 				if r.state == candidate {
 					r.votes[m.hostID] = m.response.Success
 					if r.wonElection() {
 						r.shiftToLeader()
 					}
 				}
+				r.Unlock()
 			case appendEntries:
+				r.Lock()
 				if r.state == leader { // We might have been deposed
-
 					// Inspect response and update our tracking variables appropriately
 					if !m.response.Success {
 						// TODO - When responding to AppendEntries, the follower should return success if they do a new append, OR if they already have appended that entry
@@ -398,17 +401,18 @@ func (r *RaftNode) protocol() {
 						r.matchIndex[m.hostID] = prev
 						r.nextIndex[m.hostID] = next
 					}
+					// TODO - update commit index or nextIndex[] and matchIndex[] based on response
+					r.executeLog()
 				}
-
-				// TODO - update commit index or nextIndex[] and matchIndex[] based on response
-				r.executeLog()
+				r.Unlock()
 			default:
-				panic(fmt.Sprintf("invalid incomingMsg: %d", m.msgType))
+				panic(fmt.Sprintf("invalid msg type. %s", m.String()))
 			}
 		case <-r.heartbeatTicker.C: // Send append entries, either empty or full depending on the peer's log index
 			if r.state == leader {
 				r.heartbeatAppendEntriesRPC()
 				r.updateCommitIndex()
+				r.executeLog()
 			}
 		case <-r.electionTicker.C: // Periodically time out and start a new election
 			if r.state == follower || r.state == candidate {

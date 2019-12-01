@@ -60,8 +60,21 @@ services:
     networks:
       - raft-network
     entrypoint: "client"
-    command: "-hostfile=hostfile.json -data=datafile.txt -v=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
+    command: "-hostfile=hostfile.json -data=datafile.0.txt -v=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
       
+  raft-client-1:
+    image: raft-image
+    container_name: c1
+    restart: "no"
+    environment:
+      - CONTAINER_NAME=c1
+    build:
+      context: .
+    networks:
+      - raft-network
+    entrypoint: "client"
+    command: "-hostfile=hostfile.json -data=datafile.1.txt -v=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
+
 
 networks:
   raft-network:

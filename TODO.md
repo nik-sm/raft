@@ -95,6 +95,23 @@ Instead, want:
   - if not found and time runs out, replies false
 
 
+motivating example:
+- client sends data
+  - cluster is slow, leader waits too long to hear back from majority of nodes
+  - either client or leader gives up and considers this a "failed" transaction
+- after that RPC disconnects, cluster succeeds and the data gets stored
+- client resends, same data, same serial number
+  - now we need to determine that their previous message eventually succeeded, so that the re-submission is a duplicate
+
+
+- leader receives StoreClientData RPC
+  - dispatches goroutines to do appendentriesrpc to all followers
+- leader dispatches goroutine to do appendentriesrpc, and it passes the reply back into incomingMsg chan
+- leader protocol loop receives msg on incomingMsg chan, updates indices, and checks commitIndex
+  - if committed, puts notification in clientReply chan
+
+
+
 ## leader election
 There is still some dispute where a node has just received a heartbeat appendEntriesRPC from leader, resets their tickers, and STILL times out almost immediately
 this looks like might be one of the following:
