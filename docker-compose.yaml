@@ -15,6 +15,7 @@ services:
       - type: bind
         source: ./persistence
         target: /persistence
+    entrypoint: "raft"
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-agent-1: 
@@ -31,6 +32,7 @@ services:
       - type: bind
         source: ./persistence
         target: /persistence
+    entrypoint: "raft"
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-agent-2: 
@@ -47,6 +49,7 @@ services:
       - type: bind
         source: ./persistence
         target: /persistence
+    entrypoint: "raft"
     command: "-h=hostfile.json -d=${RAFT_DURATION} -v=${RAFT_VERBOSE}"
 
   raft-client-0:

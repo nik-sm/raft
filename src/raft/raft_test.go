@@ -23,6 +23,7 @@ func mockRaftNode(vTerm Term, vLastLogTerm Term, vLastLogIdx int, vLeader HostID
 	// Construct voter node
 	voter := NewRaftNode(
 		HostID(0),
+		0,               // RecvPort
 		make(HostMap),   // Empty hosts map
 		make(ClientMap), // Empty clients map
 		nil)             // Empty 'quit' channel
@@ -45,6 +46,7 @@ func mockRaftNodeNoLog(vTerm Term, vLeader HostID) *RaftNode {
 	// Construct voter node
 	voter := NewRaftNode(
 		HostID(0),
+		0,               // RecvPort
 		make(HostMap),   // Empty hosts map
 		make(ClientMap), // Empty clients map
 		nil)             // Empty 'quit' channel

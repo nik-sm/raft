@@ -16,5 +16,3 @@ RUN go build -o /bin/raft main_raft.go
 RUN go build -o /bin/client main_client.go
 
 ENV PATH="/go/bin:${PATH}"
-
-ENTRYPOINT ["raft"]

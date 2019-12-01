@@ -47,8 +47,8 @@ type HostMap map[HostID]peer
 // ClientMap associates a raft client's ID with their net info
 type ClientMap map[ClientID]peer
 
-type hostStringMap map[HostID]string
-type clientStringMap map[ClientID]string
+type hostStringMap map[HostID]raftNodeJSON
+type clientStringMap map[ClientID]clientNodeJSON
 
 // Convenient temp storage during elections
 type electionResults map[HostID]bool
@@ -209,8 +209,9 @@ const (
 
 // RaftNode describes a participant in the Raft protocol
 type RaftNode struct {
-	id    HostID        // id of this node
-	state raftNodeState // follower, leader, or candidate
+	id       HostID        // id of this node
+	recvPort int           // Designated port for receiving
+	state    raftNodeState // follower, leader, or candidate
 
 	// Exported for persistent storage
 	CurrentTerm  Term   // latest term server has seen
@@ -282,7 +283,7 @@ func (r *RaftNode) printResults() {
 }
 
 // NewRaftNode is a public constructor for RaftNode
-func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool) *RaftNode {
+func NewRaftNode(id HostID, recvPort int, hosts HostMap, clients ClientMap, quitChan chan bool) *RaftNode {
 	// Initialize Log
 	initialLog := []LogEntry{
 		LogEntry{
@@ -295,8 +296,9 @@ func NewRaftNode(id HostID, hosts HostMap, clients ClientMap, quitChan chan bool
 	initialSM := NewStateMachine()
 
 	r := RaftNode{
-		id:    id,
-		state: follower,
+		id:       id,
+		recvPort: recvPort,
+		state:    follower,
 
 		// Exported for persistent storage
 		CurrentTerm:  0,

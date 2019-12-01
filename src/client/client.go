@@ -15,7 +15,6 @@ import (
 
 var hostfile string
 var datafile string
-var recvPort string
 var duration int
 
 // ClientNode represents a client who stores data in the raft cluster
@@ -28,6 +27,7 @@ type ClientNode struct {
 	currentLeader raft.HostID
 	verbose       bool
 	id            raft.ClientID
+	recvPort      int
 	datafile      string
 	data          []raft.ClientData
 	quitChan      chan bool
@@ -174,8 +174,6 @@ func init() {
 	flag.IntVar(&duration, "duration", 30, "time until node shutdown")
 	fmt.Printf("datafile: %s\n", datafile)
 
-	recvPort = "4321"
-
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
@@ -187,8 +185,13 @@ func Client() {
 	clients := make(raft.ClientMap)
 	quitChan := make(chan bool)
 
+	intID, recvPort := raft.ResolveAllPeers(hosts, clients, hostfile, false)
+
+	id := raft.ClientID(intID)
+
 	c := ClientNode{
-		id:            raft.ClientID(raft.ClientID(raft.ResolveAllPeers(hosts, clients, hostfile, false))),
+		id:            id,
+		recvPort:      recvPort,
 		hosts:         hosts,
 		clients:       clients,
 		serialNum:     0,

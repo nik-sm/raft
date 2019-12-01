@@ -1,4 +1,11 @@
 { 
-  "servers": ["r0", "r1", "r2"],
-  "clients": ["c0", "c1"]
+  "raftnodes": [
+    { "name": "r0", "port": 10000 },
+    { "name": "r1", "port": 10001 },
+    { "name": "r2", "port": 10002 }
+  ],
+  "clientnodes": [
+    { "name": "c0", "port": 20000 },
+    { "name": "c1", "port": 20001 }
+  ]
 }

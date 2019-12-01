@@ -1,128 +1,12 @@
 package raft
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/rpc"
-	"os"
 	"strings"
-	"time"
 )
-
-// ResolveAllPeers gets the net address of all raft hosts and clients, and stores these in
-// the provided HostMap and ClientMap structures.
-// Notice that all nodes must be alive to begin the protocol; thus We loop infinitely here,
-// until we have information for all nodes.
-// Returns our own id as integer. Caller (either host or client) must cast to HostID or ClientID appropriately
-func ResolveAllPeers(hosts HostMap, clients ClientMap, hostfile string, amHost bool) int {
-	decodedJSON := readHostfileJSON(hostfile)
-	myHost := HostID(-1)
-	myClient := ClientID(-1)
-
-	// Lookup our own ID, depending whether we are a raft node or a client node
-	containerName := os.Getenv("CONTAINER_NAME")
-	if amHost {
-		for i, name := range decodedJSON.RaftNodes {
-			if name == containerName {
-				myHost = HostID(i)
-			}
-		}
-	} else {
-		for i, name := range decodedJSON.ClientNodes {
-			if name == containerName {
-				myClient = ClientID(i)
-			}
-		}
-	}
-	if int(myHost) == -1 && int(myClient) == -1 {
-		panic("Did not find our own name in the hostfile")
-	}
-
-	// Make maps of all known hosts and clients
-	h, c := makeHostStringMap(decodedJSON)
-
-	// Continue resolving until all hosts and clients found
-	for {
-		allFound := ResolvePeersOnce(hosts, clients, h, c)
-		if allFound {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	if amHost {
-		return int(myHost)
-	}
-	return int(myClient)
-}
-
-// ResolvePeersOnce makes one attempt to identify all hosts and clients in the provided maps.
-// As they are found, peers get removed from these maps.
-// NOTE - We do not handle the errors from LookupHost, because we are waiting for nodes to come online.
-func ResolvePeersOnce(hosts HostMap, clients ClientMap, h hostStringMap, c clientStringMap) bool {
-	// Resolve raft hosts
-	for i, hostname := range h {
-		log.Println("resolve host: ", hostname)
-
-		sendAddrs, err := net.LookupHost(hostname)
-		if err == nil {
-			ip := net.ParseIP(sendAddrs[0])
-			log.Println("found: ", ip.String())
-			hosts[i] = peer{IP: ip, Port: recvPort, Hostname: hostname}
-			delete(h, i)
-		}
-	}
-
-	// Resolve clients
-	for i, clientname := range c {
-		log.Println("resolve client: ", clientname)
-		sendAddrs, err := net.LookupHost(clientname)
-		if err == nil {
-			ip := net.ParseIP(sendAddrs[0])
-			log.Println("found: ", ip.String())
-			clients[i] = peer{IP: ip, Port: recvPort, Hostname: clientname}
-			delete(c, i)
-		}
-	}
-	return len(h) == 0 && len(c) == 0
-}
-
-type hostsAndClients struct {
-	RaftNodes   []string `json:"servers"`
-	ClientNodes []string `json:"clients"`
-}
-
-func readHostfileJSON(hostfile string) hostsAndClients {
-	// get contents of JSON file
-	jsonFile, err := os.Open(hostfile)
-	if err != nil {
-		panic(err)
-	}
-	defer jsonFile.Close()
-	byteValue, _ := ioutil.ReadAll(jsonFile)
-
-	var hc hostsAndClients
-	err = json.Unmarshal(byteValue, &hc)
-	if err != nil {
-		panic(err)
-	}
-	return hc
-}
-
-func makeHostStringMap(hc hostsAndClients) (hostStringMap, clientStringMap) {
-	// Find our own ID and build a map for DNS lookup of other hosts
-	h := make(hostStringMap)
-	c := make(clientStringMap)
-	for i, name := range hc.RaftNodes {
-		h[HostID(i)] = name
-	}
-	for i, name := range hc.ClientNodes {
-		c[ClientID(i)] = name
-	}
-	return h, c
-}
 
 // AppendEntriesStruct holds the input arguments for the RPC AppendEntries
 type AppendEntriesStruct struct {
@@ -206,7 +90,8 @@ func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	} else {
 		err = conn.Call("RaftNode.AppendEntries", args, &response)
 		if err != nil {
-			panic(err)
+			log.Println("WARNING:", err)
+			response = RPCResponse{Term: r.CurrentTerm, Success: false, LeaderID: r.currentLeader}
 		}
 	}
 
@@ -293,7 +178,7 @@ func (r *RaftNode) recvDaemon(quitChan <-chan bool) {
 	if err != nil {
 		panic(err)
 	}
-	l, err := net.Listen("tcp", ":"+fmt.Sprintf("%d", recvPort))
+	l, err := net.Listen("tcp", ":"+fmt.Sprintf("%d", r.recvPort))
 	if err != nil {
 		panic(fmt.Sprintf("listen error: %s", err))
 	}

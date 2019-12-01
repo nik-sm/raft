@@ -11,7 +11,6 @@ import (
 )
 
 var hostfile string
-var recvPort int
 var duration int
 var verbose bool
 
@@ -104,6 +103,9 @@ func (r *RaftNode) shiftToCandidate() {
 // client may choose to retry at us or another random node.
 // TODO - need a version of StoreClientData that ensures some form of commitment after leader responds to a message?
 func (r *RaftNode) StoreClientData(cd ClientDataStruct, response *ClientResponse) error {
+	if r.verbose {
+		log.Println("############ StoreClientData()")
+	}
 	// NOTE - if we do not yet know leader, client will see response.leader = -1.
 	// They should wait before recontact, and may recontact us or another random node
 	defer r.persistState()
@@ -411,8 +413,10 @@ func (r *RaftNode) protocol() {
 		case <-r.heartbeatTicker.C: // Send append entries, either empty or full depending on the peer's log index
 			if r.state == leader {
 				r.heartbeatAppendEntriesRPC()
+				r.Lock()
 				r.updateCommitIndex()
 				r.executeLog()
+				r.Unlock()
 			}
 		case <-r.electionTicker.C: // Periodically time out and start a new election
 			if r.state == follower || r.state == candidate {
@@ -474,7 +478,6 @@ func init() {
 	flag.IntVar(&duration, "d", 30, "time until node shutdown")
 	flag.BoolVar(&verbose, "v", false, "verbose output")
 
-	recvPort = 4321
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
@@ -485,9 +488,10 @@ func Raft() {
 	clients := make(ClientMap)
 	quitChan := make(chan bool)
 
-	id := HostID(ResolveAllPeers(hosts, clients, hostfile, true))
+	intID, recvPort := ResolveAllPeers(hosts, clients, hostfile, true)
+	id := HostID(intID)
 
-	r := NewRaftNode(id, hosts, clients, quitChan)
+	r := NewRaftNode(id, recvPort, hosts, clients, quitChan)
 
 	log.Printf("RaftNode: %s", r.String())
 
