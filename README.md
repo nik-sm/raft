@@ -1,11 +1,5 @@
 Go implementation of [Raft](https://raft.github.io/) from scratch for CS7610: Distributed Systems
 
-# Useful links:
-
-- https://github.com/ongardie/raft.tla/blob/master/raft.tla
-- https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf
-- https://golang.org/pkg/net/rpc/#Dial
-- https://raft.github.io/raft.pdf
 
 # Usage and Overview
 
@@ -193,3 +187,11 @@ implemented:
     re-executing the request"
   - "[a leader] needs to commit an entry from its term. ... each leader [must]
     commit a blank no-opentry into the log at the start of ites term"
+
+# Useful links
+
+- https://raft.github.io/raft.pdf
+- https://golang.org/pkg/net/rpc/
+- https://github.com/ongardie/raft.tla/blob/master/raft.tla
+- https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf
+
