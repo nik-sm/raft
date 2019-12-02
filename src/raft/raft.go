@@ -412,8 +412,8 @@ func (r *RaftNode) protocol() {
 			}
 		case <-r.heartbeatTicker.C: // Send append entries, either empty or full depending on the peer's log index
 			if r.state == leader {
-				r.heartbeatAppendEntriesRPC()
 				r.Lock()
+				r.heartbeatAppendEntriesRPC()
 				r.updateCommitIndex()
 				r.executeLog()
 				r.Unlock()

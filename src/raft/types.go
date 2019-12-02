@@ -229,6 +229,7 @@ type RaftNode struct {
 	nextIndex       map[HostID]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
 	matchIndex      map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
 	indexIncrements map[HostID]int      // length of the entries list we have sent to each peer
+	// TODO - notice that indexIncrements approach is flawed because we may receive the successful response to a previous heartbeat when the indexIncrement has already been set to a positive number. This would mean we bump that follower's nextIndex value an extra time, and get an out-of-bounds panic.
 
 	// Convenience variables
 	sync.Mutex                          // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()

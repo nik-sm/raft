@@ -127,8 +127,14 @@ this looks like might be one of the following:
 
 
 
+## IndexIncrements
+- We want a FIFO channel with each client; really we want a single goroutine for each client that keeps sending an RPC
+  - upon successful receipt, it can update that specific coordinate of NextIndex[]
+  - upon failure, it decrements
+
 # Notes
 - Figure 2 does not specify which to do first:
   - reply as described in a certain "Receiver implementation" section, or
   - convert to follower if the term is > than our currentTerm
   - presumably, we should convert to follower first
+ 
