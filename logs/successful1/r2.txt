@@ -1,0 +1,1083 @@
+2019/12/02 02:07:10 resolve host:  r0
+2019/12/02 02:07:10 found:  172.18.0.2
+2019/12/02 02:07:10 resolve host:  r1
+2019/12/02 02:07:10 found:  172.18.0.6
+2019/12/02 02:07:10 resolve host:  r2
+2019/12/02 02:07:10 found:  172.18.0.4
+2019/12/02 02:07:10 resolve client:  c0
+2019/12/02 02:07:10 found:  172.18.0.5
+2019/12/02 02:07:10 resolve client:  c1
+2019/12/02 02:07:10 found:  172.18.0.3
+2019/12/02 02:07:10 RaftNode: Raft Node: id=2, state=follower, currentTerm=0, votedFor=-1, hosts={0={Peer IP: 172.18.0.2, Port: 10000, Hostname: r0},1={Peer IP: 172.18.0.6, Port: 10001, Hostname: r1},2={Peer IP: 172.18.0.4, Port: 10002, Hostname: r2},}, clients={0={Peer IP: 172.18.0.5, Port: 20000, Hostname: c0},1={Peer IP: 172.18.0.3, Port: 20001, Hostname: c1},}, votes={}, verbose=true, log={log contents: [0={term: -1, clientData: LOG_START, clientID: -1, clientSerialNum: -1, clientResponse: ClientResponse Success=false, Leader=0}
+]}, stateMachine={clientSerialNums: {0: -1,1: -1,}. contents: {idx: 0, item: STATE_MACHINE_START,}}
+2019/12/02 02:07:10 rpc.Register: reply type of method "CandidateLooksEligible" is not a pointer: "raft.Term"
+2019/12/02 02:07:10 rpc.Register: method "Lock" has 1 input parameters; needs exactly three
+2019/12/02 02:07:10 rpc.Register: method "String" has 1 input parameters; needs exactly three
+2019/12/02 02:07:10 rpc.Register: method "Unlock" has 1 input parameters; needs exactly three
+2019/12/02 02:07:10 new election timeout: 3s
+2019/12/02 02:07:10 new heartbeat timeout: 1s
+2019/12/02 02:07:10 Begin Protocol. verbose: true
+2019/12/02 02:07:11 ############ StoreClientData()
+2019/12/02 02:07:11 ############ StoreClientData()
+2019/12/02 02:07:12 ############ StoreClientData()
+2019/12/02 02:07:12 ############ StoreClientData()
+2019/12/02 02:07:13 TIMED OUT - STARTING ELECTION
+2019/12/02 02:07:13 new election timeout: 4s
+2019/12/02 02:07:13 new heartbeat timeout: 1s
+2019/12/02 02:07:13 ############  SHIFT TO CANDIDATE
+2019/12/02 02:07:13 MultiRequestVote
+2019/12/02 02:07:13 ############ StoreClientData()
+2019/12/02 02:07:13 ############ StoreClientData()
+2019/12/02 02:07:13 received vote reply from hostID: 0, response.success=true
+2019/12/02 02:07:13 processing vote reply, hostID=0: response=ClientResponse Term=0, Success=true
+2019/12/02 02:07:13 Checking ELECTION majority. nVoters: 3, nReq: 2, nFound: 2, Votes: [|host 2, votedYes true||host 0, votedYes true||host 1, votedYes false|]
+2019/12/02 02:07:13 ############  SHIFT TO LEADER. Term: 1
+2019/12/02 02:07:13 heartbeatAppendEntriesRPC
+2019/12/02 02:07:13 theirNextIdx: 1
+2019/12/02 02:07:13 set indexIncrements for host 1 to 0. (previously 0)
+2019/12/02 02:07:13 theirNextIdx: 1
+2019/12/02 02:07:13 set indexIncrements for host 0 to 0. (previously 0)
+2019/12/02 02:07:13 appendEntriesRPC
+2019/12/02 02:07:13 hostID: 0
+2019/12/02 02:07:13 prevLogIdx: 0
+2019/12/02 02:07:13 prevLogTerm: -1
+2019/12/02 02:07:13 appendEntriesRPC
+2019/12/02 02:07:13 hostID: 1
+2019/12/02 02:07:13 prevLogIdx: 0
+2019/12/02 02:07:13 prevLogTerm: -1
+2019/12/02 02:07:13 received vote reply from hostID: 1, response.success=true
+2019/12/02 02:07:13 processing vote reply, hostID=1: response=ClientResponse Term=0, Success=true
+2019/12/02 02:07:13 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:13 Increment nextIndex for hostID 0 from 1 to 1
+2019/12/02 02:07:13 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:13 Increment nextIndex for hostID 1 from 1 to 1
+2019/12/02 02:07:14 heartbeatAppendEntriesRPC
+2019/12/02 02:07:14 theirNextIdx: 1
+2019/12/02 02:07:14 set indexIncrements for host 0 to 0. (previously 0)
+2019/12/02 02:07:14 theirNextIdx: 1
+2019/12/02 02:07:14 set indexIncrements for host 1 to 0. (previously 0)
+2019/12/02 02:07:14 appendEntriesRPC
+2019/12/02 02:07:14 hostID: 1
+2019/12/02 02:07:14 prevLogIdx: 0
+2019/12/02 02:07:14 prevLogTerm: -1
+2019/12/02 02:07:14 appendEntriesRPC
+2019/12/02 02:07:14 hostID: 0
+2019/12/02 02:07:14 prevLogIdx: 0
+2019/12/02 02:07:14 prevLogTerm: -1
+2019/12/02 02:07:14 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:14 Increment nextIndex for hostID 1 from 1 to 1
+2019/12/02 02:07:14 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:14 Increment nextIndex for hostID 0 from 1 to 1
+2019/12/02 02:07:14 ############ StoreClientData()
+2019/12/02 02:07:14 heartbeatAppendEntriesRPC
+2019/12/02 02:07:14 theirNextIdx: 1
+2019/12/02 02:07:14 appending: term: 1, clientData: second data line 1, clientID: 1, clientSerialNum: 1, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:14 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:14 theirNextIdx: 1
+2019/12/02 02:07:14 appending: term: 1, clientData: second data line 1, clientID: 1, clientSerialNum: 1, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:14 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:14 appendEntriesRPC
+2019/12/02 02:07:14 hostID: 1
+2019/12/02 02:07:14 prevLogIdx: 0
+2019/12/02 02:07:14 prevLogTerm: -1
+2019/12/02 02:07:14 appendEntriesRPC
+2019/12/02 02:07:14 hostID: 0
+2019/12/02 02:07:14 prevLogIdx: 0
+2019/12/02 02:07:14 prevLogTerm: -1
+2019/12/02 02:07:14 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:14 Increment nextIndex for hostID 0 from 1 to 2
+2019/12/02 02:07:14 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:14 Increment nextIndex for hostID 1 from 1 to 2
+2019/12/02 02:07:14 ############ StoreClientData()
+2019/12/02 02:07:14 heartbeatAppendEntriesRPC
+2019/12/02 02:07:14 theirNextIdx: 2
+2019/12/02 02:07:14 appending: term: 1, clientData: first data line 1, clientID: 0, clientSerialNum: 1, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:14 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:14 theirNextIdx: 2
+2019/12/02 02:07:14 appending: term: 1, clientData: first data line 1, clientID: 0, clientSerialNum: 1, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:14 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:14 appendEntriesRPC
+2019/12/02 02:07:14 hostID: 0
+2019/12/02 02:07:14 prevLogIdx: 1
+2019/12/02 02:07:14 prevLogTerm: 1
+2019/12/02 02:07:14 appendEntriesRPC
+2019/12/02 02:07:14 hostID: 1
+2019/12/02 02:07:14 prevLogIdx: 1
+2019/12/02 02:07:14 prevLogTerm: 1
+2019/12/02 02:07:15 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:15 Increment nextIndex for hostID 0 from 2 to 3
+2019/12/02 02:07:15 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:15 Increment nextIndex for hostID 1 from 2 to 3
+2019/12/02 02:07:15 heartbeatAppendEntriesRPC
+2019/12/02 02:07:15 theirNextIdx: 3
+2019/12/02 02:07:15 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:15 theirNextIdx: 3
+2019/12/02 02:07:15 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:15 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:15 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:15 appendEntriesRPC
+2019/12/02 02:07:15 hostID: 0
+2019/12/02 02:07:15 prevLogIdx: 2
+2019/12/02 02:07:15 prevLogTerm: 1
+2019/12/02 02:07:15 appendEntriesRPC
+2019/12/02 02:07:15 hostID: 1
+2019/12/02 02:07:15 prevLogIdx: 2
+2019/12/02 02:07:15 prevLogTerm: 1
+2019/12/02 02:07:15 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:15 Increment nextIndex for hostID 0 from 3 to 3
+2019/12/02 02:07:15 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:15 Increment nextIndex for hostID 1 from 3 to 3
+2019/12/02 02:07:15 ############ StoreClientData()
+2019/12/02 02:07:15 heartbeatAppendEntriesRPC
+2019/12/02 02:07:15 theirNextIdx: 3
+2019/12/02 02:07:15 appending: term: 1, clientData: second data line 2, clientID: 1, clientSerialNum: 2, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:15 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:15 theirNextIdx: 3
+2019/12/02 02:07:15 appending: term: 1, clientData: second data line 2, clientID: 1, clientSerialNum: 2, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:15 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:15 appendEntriesRPC
+2019/12/02 02:07:15 hostID: 1
+2019/12/02 02:07:15 prevLogIdx: 2
+2019/12/02 02:07:15 prevLogTerm: 1
+2019/12/02 02:07:15 appendEntriesRPC
+2019/12/02 02:07:15 hostID: 0
+2019/12/02 02:07:15 prevLogIdx: 2
+2019/12/02 02:07:15 prevLogTerm: 1
+2019/12/02 02:07:15 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:15 Increment nextIndex for hostID 1 from 3 to 4
+2019/12/02 02:07:15 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:15 Increment nextIndex for hostID 0 from 3 to 4
+2019/12/02 02:07:16 ############ StoreClientData()
+2019/12/02 02:07:16 heartbeatAppendEntriesRPC
+2019/12/02 02:07:16 theirNextIdx: 4
+2019/12/02 02:07:16 appending: term: 1, clientData: first data line 2, clientID: 0, clientSerialNum: 2, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:16 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:16 theirNextIdx: 4
+2019/12/02 02:07:16 appending: term: 1, clientData: first data line 2, clientID: 0, clientSerialNum: 2, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:16 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:16 appendEntriesRPC
+2019/12/02 02:07:16 hostID: 0
+2019/12/02 02:07:16 prevLogIdx: 3
+2019/12/02 02:07:16 prevLogTerm: 1
+2019/12/02 02:07:16 appendEntriesRPC
+2019/12/02 02:07:16 hostID: 1
+2019/12/02 02:07:16 prevLogIdx: 3
+2019/12/02 02:07:16 prevLogTerm: 1
+2019/12/02 02:07:16 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:16 Increment nextIndex for hostID 0 from 4 to 5
+2019/12/02 02:07:16 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:16 Increment nextIndex for hostID 1 from 4 to 5
+2019/12/02 02:07:16 heartbeatAppendEntriesRPC
+2019/12/02 02:07:16 theirNextIdx: 5
+2019/12/02 02:07:16 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:16 theirNextIdx: 5
+2019/12/02 02:07:16 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:16 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:16 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:16 appendEntriesRPC
+2019/12/02 02:07:16 hostID: 1
+2019/12/02 02:07:16 prevLogIdx: 4
+2019/12/02 02:07:16 prevLogTerm: 1
+2019/12/02 02:07:16 appendEntriesRPC
+2019/12/02 02:07:16 hostID: 0
+2019/12/02 02:07:16 prevLogIdx: 4
+2019/12/02 02:07:16 prevLogTerm: 1
+2019/12/02 02:07:16 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:16 Increment nextIndex for hostID 1 from 5 to 5
+2019/12/02 02:07:16 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:16 Increment nextIndex for hostID 0 from 5 to 5
+2019/12/02 02:07:16 ############ StoreClientData()
+2019/12/02 02:07:16 heartbeatAppendEntriesRPC
+2019/12/02 02:07:16 theirNextIdx: 5
+2019/12/02 02:07:16 appending: term: 1, clientData: second data line 3, clientID: 1, clientSerialNum: 3, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:16 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:16 theirNextIdx: 5
+2019/12/02 02:07:16 appending: term: 1, clientData: second data line 3, clientID: 1, clientSerialNum: 3, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:16 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:16 appendEntriesRPC
+2019/12/02 02:07:16 hostID: 1
+2019/12/02 02:07:16 prevLogIdx: 4
+2019/12/02 02:07:16 prevLogTerm: 1
+2019/12/02 02:07:16 appendEntriesRPC
+2019/12/02 02:07:16 hostID: 0
+2019/12/02 02:07:16 prevLogIdx: 4
+2019/12/02 02:07:16 prevLogTerm: 1
+2019/12/02 02:07:16 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:16 Increment nextIndex for hostID 1 from 5 to 6
+2019/12/02 02:07:16 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:16 Increment nextIndex for hostID 0 from 5 to 6
+2019/12/02 02:07:17 ############ StoreClientData()
+2019/12/02 02:07:17 heartbeatAppendEntriesRPC
+2019/12/02 02:07:17 theirNextIdx: 6
+2019/12/02 02:07:17 appending: term: 1, clientData: first data line 3, clientID: 0, clientSerialNum: 3, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:17 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:17 theirNextIdx: 6
+2019/12/02 02:07:17 appending: term: 1, clientData: first data line 3, clientID: 0, clientSerialNum: 3, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:17 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:17 appendEntriesRPC
+2019/12/02 02:07:17 hostID: 0
+2019/12/02 02:07:17 prevLogIdx: 5
+2019/12/02 02:07:17 prevLogTerm: 1
+2019/12/02 02:07:17 appendEntriesRPC
+2019/12/02 02:07:17 hostID: 1
+2019/12/02 02:07:17 prevLogIdx: 5
+2019/12/02 02:07:17 prevLogTerm: 1
+2019/12/02 02:07:17 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:17 Increment nextIndex for hostID 1 from 6 to 7
+2019/12/02 02:07:17 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:17 Increment nextIndex for hostID 0 from 6 to 7
+2019/12/02 02:07:17 heartbeatAppendEntriesRPC
+2019/12/02 02:07:17 theirNextIdx: 7
+2019/12/02 02:07:17 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:17 theirNextIdx: 7
+2019/12/02 02:07:17 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:17 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:17 appendEntriesRPC
+2019/12/02 02:07:17 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:17 appendEntriesRPC
+2019/12/02 02:07:17 hostID: 0
+2019/12/02 02:07:17 prevLogIdx: 6
+2019/12/02 02:07:17 hostID: 1
+2019/12/02 02:07:17 prevLogTerm: 1
+2019/12/02 02:07:17 prevLogIdx: 6
+2019/12/02 02:07:17 prevLogTerm: 1
+2019/12/02 02:07:17 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:17 Increment nextIndex for hostID 0 from 7 to 7
+2019/12/02 02:07:17 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:17 Increment nextIndex for hostID 1 from 7 to 7
+2019/12/02 02:07:17 ############ StoreClientData()
+2019/12/02 02:07:17 heartbeatAppendEntriesRPC
+2019/12/02 02:07:17 theirNextIdx: 7
+2019/12/02 02:07:17 appending: term: 1, clientData: second data line 4, clientID: 1, clientSerialNum: 4, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:17 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:17 theirNextIdx: 7
+2019/12/02 02:07:17 appending: term: 1, clientData: second data line 4, clientID: 1, clientSerialNum: 4, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:17 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:17 appendEntriesRPC
+2019/12/02 02:07:17 hostID: 1
+2019/12/02 02:07:17 prevLogIdx: 6
+2019/12/02 02:07:17 prevLogTerm: 1
+2019/12/02 02:07:17 appendEntriesRPC
+2019/12/02 02:07:17 hostID: 0
+2019/12/02 02:07:17 prevLogIdx: 6
+2019/12/02 02:07:17 prevLogTerm: 1
+2019/12/02 02:07:17 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:17 Increment nextIndex for hostID 0 from 7 to 8
+2019/12/02 02:07:17 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:17 Increment nextIndex for hostID 1 from 7 to 8
+2019/12/02 02:07:18 ############ StoreClientData()
+2019/12/02 02:07:18 heartbeatAppendEntriesRPC
+2019/12/02 02:07:18 theirNextIdx: 8
+2019/12/02 02:07:18 appending: term: 1, clientData: first data line 4, clientID: 0, clientSerialNum: 4, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:18 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:18 theirNextIdx: 8
+2019/12/02 02:07:18 appending: term: 1, clientData: first data line 4, clientID: 0, clientSerialNum: 4, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:18 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:18 appendEntriesRPC
+2019/12/02 02:07:18 appendEntriesRPC
+2019/12/02 02:07:18 hostID: 0
+2019/12/02 02:07:18 prevLogIdx: 7
+2019/12/02 02:07:18 prevLogTerm: 1
+2019/12/02 02:07:18 hostID: 1
+2019/12/02 02:07:18 prevLogIdx: 7
+2019/12/02 02:07:18 prevLogTerm: 1
+2019/12/02 02:07:18 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:18 Increment nextIndex for hostID 0 from 8 to 9
+2019/12/02 02:07:18 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:18 Increment nextIndex for hostID 1 from 8 to 9
+2019/12/02 02:07:18 heartbeatAppendEntriesRPC
+2019/12/02 02:07:18 theirNextIdx: 9
+2019/12/02 02:07:18 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:18 theirNextIdx: 9
+2019/12/02 02:07:18 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:18 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:18 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 2, votedYes true||host 0, votedYes true||host 1, votedYes true|]
+2019/12/02 02:07:18 appendEntriesRPC
+2019/12/02 02:07:18 hostID: 1
+2019/12/02 02:07:18 prevLogIdx: 8
+2019/12/02 02:07:18 prevLogTerm: 1
+2019/12/02 02:07:18 appendEntriesRPC
+2019/12/02 02:07:18 hostID: 0
+2019/12/02 02:07:18 prevLogIdx: 8
+2019/12/02 02:07:18 prevLogTerm: 1
+2019/12/02 02:07:18 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:18 Increment nextIndex for hostID 0 from 9 to 9
+2019/12/02 02:07:18 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:18 Increment nextIndex for hostID 1 from 9 to 9
+2019/12/02 02:07:18 ############ StoreClientData()
+2019/12/02 02:07:18 heartbeatAppendEntriesRPC
+2019/12/02 02:07:18 theirNextIdx: 9
+2019/12/02 02:07:18 appending: term: 1, clientData: second data line 5, clientID: 1, clientSerialNum: 5, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:18 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:18 theirNextIdx: 9
+2019/12/02 02:07:18 appending: term: 1, clientData: second data line 5, clientID: 1, clientSerialNum: 5, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:18 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:18 appendEntriesRPC
+2019/12/02 02:07:18 hostID: 1
+2019/12/02 02:07:18 prevLogIdx: 8
+2019/12/02 02:07:18 prevLogTerm: 1
+2019/12/02 02:07:18 appendEntriesRPC
+2019/12/02 02:07:18 hostID: 0
+2019/12/02 02:07:18 prevLogIdx: 8
+2019/12/02 02:07:18 prevLogTerm: 1
+2019/12/02 02:07:18 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:18 Increment nextIndex for hostID 1 from 9 to 10
+2019/12/02 02:07:18 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:18 Increment nextIndex for hostID 0 from 9 to 10
+2019/12/02 02:07:19 ############ StoreClientData()
+2019/12/02 02:07:19 heartbeatAppendEntriesRPC
+2019/12/02 02:07:19 theirNextIdx: 10
+2019/12/02 02:07:19 appending: term: 1, clientData: first data line 5, clientID: 0, clientSerialNum: 5, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:19 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:19 theirNextIdx: 10
+2019/12/02 02:07:19 appending: term: 1, clientData: first data line 5, clientID: 0, clientSerialNum: 5, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:19 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:19 appendEntriesRPC
+2019/12/02 02:07:19 appendEntriesRPC
+2019/12/02 02:07:19 hostID: 0
+2019/12/02 02:07:19 prevLogIdx: 9
+2019/12/02 02:07:19 prevLogTerm: 1
+2019/12/02 02:07:19 hostID: 1
+2019/12/02 02:07:19 prevLogIdx: 9
+2019/12/02 02:07:19 prevLogTerm: 1
+2019/12/02 02:07:19 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:19 Increment nextIndex for hostID 1 from 10 to 11
+2019/12/02 02:07:19 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:19 Increment nextIndex for hostID 0 from 10 to 11
+2019/12/02 02:07:19 heartbeatAppendEntriesRPC
+2019/12/02 02:07:19 theirNextIdx: 11
+2019/12/02 02:07:19 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:19 theirNextIdx: 11
+2019/12/02 02:07:19 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:19 appendEntriesRPC
+2019/12/02 02:07:19 hostID: 0
+2019/12/02 02:07:19 prevLogIdx: 10
+2019/12/02 02:07:19 prevLogTerm: 1
+2019/12/02 02:07:19 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:19 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:19 appendEntriesRPC
+2019/12/02 02:07:19 hostID: 1
+2019/12/02 02:07:19 prevLogIdx: 10
+2019/12/02 02:07:19 prevLogTerm: 1
+2019/12/02 02:07:19 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:19 Increment nextIndex for hostID 1 from 11 to 11
+2019/12/02 02:07:19 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:19 Increment nextIndex for hostID 0 from 11 to 11
+2019/12/02 02:07:19 ############ StoreClientData()
+2019/12/02 02:07:19 heartbeatAppendEntriesRPC
+2019/12/02 02:07:19 theirNextIdx: 11
+2019/12/02 02:07:19 appending: term: 1, clientData: second data line 6, clientID: 1, clientSerialNum: 6, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:19 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:19 theirNextIdx: 11
+2019/12/02 02:07:19 appendEntriesRPC
+2019/12/02 02:07:19 hostID: 0
+2019/12/02 02:07:19 prevLogIdx: 10
+2019/12/02 02:07:19 appending: term: 1, clientData: second data line 6, clientID: 1, clientSerialNum: 6, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:19 prevLogTerm: 1
+2019/12/02 02:07:19 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:19 appendEntriesRPC
+2019/12/02 02:07:19 hostID: 1
+2019/12/02 02:07:19 prevLogIdx: 10
+2019/12/02 02:07:19 prevLogTerm: 1
+2019/12/02 02:07:20 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:20 Increment nextIndex for hostID 1 from 11 to 12
+2019/12/02 02:07:20 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:20 Increment nextIndex for hostID 0 from 11 to 12
+2019/12/02 02:07:20 ############ StoreClientData()
+2019/12/02 02:07:20 heartbeatAppendEntriesRPC
+2019/12/02 02:07:20 theirNextIdx: 12
+2019/12/02 02:07:20 appending: term: 1, clientData: first data line 6, clientID: 0, clientSerialNum: 6, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:20 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:20 theirNextIdx: 12
+2019/12/02 02:07:20 appending: term: 1, clientData: first data line 6, clientID: 0, clientSerialNum: 6, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:20 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:20 appendEntriesRPC
+2019/12/02 02:07:20 hostID: 1
+2019/12/02 02:07:20 prevLogIdx: 11
+2019/12/02 02:07:20 prevLogTerm: 1
+2019/12/02 02:07:20 appendEntriesRPC
+2019/12/02 02:07:20 hostID: 0
+2019/12/02 02:07:20 prevLogIdx: 11
+2019/12/02 02:07:20 prevLogTerm: 1
+2019/12/02 02:07:20 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:20 Increment nextIndex for hostID 1 from 12 to 13
+2019/12/02 02:07:20 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:20 Increment nextIndex for hostID 0 from 12 to 13
+2019/12/02 02:07:20 heartbeatAppendEntriesRPC
+2019/12/02 02:07:20 theirNextIdx: 13
+2019/12/02 02:07:20 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:20 theirNextIdx: 13
+2019/12/02 02:07:20 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:20 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:20 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 2, votedYes true||host 0, votedYes true||host 1, votedYes true|]
+2019/12/02 02:07:20 appendEntriesRPC
+2019/12/02 02:07:20 hostID: 0
+2019/12/02 02:07:20 prevLogIdx: 12
+2019/12/02 02:07:20 prevLogTerm: 1
+2019/12/02 02:07:20 appendEntriesRPC
+2019/12/02 02:07:20 hostID: 1
+2019/12/02 02:07:20 prevLogIdx: 12
+2019/12/02 02:07:20 prevLogTerm: 1
+2019/12/02 02:07:20 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:20 Increment nextIndex for hostID 0 from 13 to 13
+2019/12/02 02:07:20 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:20 Increment nextIndex for hostID 1 from 13 to 13
+2019/12/02 02:07:21 ############ StoreClientData()
+2019/12/02 02:07:21 heartbeatAppendEntriesRPC
+2019/12/02 02:07:21 theirNextIdx: 13
+2019/12/02 02:07:21 appending: term: 1, clientData: second data line 7, clientID: 1, clientSerialNum: 7, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:21 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:21 theirNextIdx: 13
+2019/12/02 02:07:21 appending: term: 1, clientData: second data line 7, clientID: 1, clientSerialNum: 7, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:21 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:21 appendEntriesRPC
+2019/12/02 02:07:21 hostID: 0
+2019/12/02 02:07:21 prevLogIdx: 12
+2019/12/02 02:07:21 prevLogTerm: 1
+2019/12/02 02:07:21 appendEntriesRPC
+2019/12/02 02:07:21 hostID: 1
+2019/12/02 02:07:21 prevLogIdx: 12
+2019/12/02 02:07:21 prevLogTerm: 1
+2019/12/02 02:07:21 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:21 Increment nextIndex for hostID 0 from 13 to 14
+2019/12/02 02:07:21 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:21 Increment nextIndex for hostID 1 from 13 to 14
+2019/12/02 02:07:21 ############ StoreClientData()
+2019/12/02 02:07:21 heartbeatAppendEntriesRPC
+2019/12/02 02:07:21 theirNextIdx: 14
+2019/12/02 02:07:21 appending: term: 1, clientData: first data line 7, clientID: 0, clientSerialNum: 7, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:21 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:21 theirNextIdx: 14
+2019/12/02 02:07:21 appending: term: 1, clientData: first data line 7, clientID: 0, clientSerialNum: 7, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:21 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:21 appendEntriesRPC
+2019/12/02 02:07:21 hostID: 1
+2019/12/02 02:07:21 prevLogIdx: 13
+2019/12/02 02:07:21 prevLogTerm: 1
+2019/12/02 02:07:21 appendEntriesRPC
+2019/12/02 02:07:21 hostID: 0
+2019/12/02 02:07:21 prevLogIdx: 13
+2019/12/02 02:07:21 prevLogTerm: 1
+2019/12/02 02:07:21 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:21 Increment nextIndex for hostID 0 from 14 to 15
+2019/12/02 02:07:21 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:21 Increment nextIndex for hostID 1 from 14 to 15
+2019/12/02 02:07:21 heartbeatAppendEntriesRPC
+2019/12/02 02:07:21 theirNextIdx: 15
+2019/12/02 02:07:21 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:21 appendEntriesRPC
+2019/12/02 02:07:21 theirNextIdx: 15
+2019/12/02 02:07:21 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:21 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:21 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:21 appendEntriesRPC
+2019/12/02 02:07:21 hostID: 1
+2019/12/02 02:07:21 prevLogIdx: 14
+2019/12/02 02:07:21 prevLogTerm: 1
+2019/12/02 02:07:21 hostID: 0
+2019/12/02 02:07:21 prevLogIdx: 14
+2019/12/02 02:07:21 prevLogTerm: 1
+2019/12/02 02:07:21 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:21 Increment nextIndex for hostID 1 from 15 to 15
+2019/12/02 02:07:21 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:21 Increment nextIndex for hostID 0 from 15 to 15
+2019/12/02 02:07:22 ############ StoreClientData()
+2019/12/02 02:07:22 heartbeatAppendEntriesRPC
+2019/12/02 02:07:22 theirNextIdx: 15
+2019/12/02 02:07:22 appending: term: 1, clientData: second data line 8, clientID: 1, clientSerialNum: 8, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:22 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:22 theirNextIdx: 15
+2019/12/02 02:07:22 appending: term: 1, clientData: second data line 8, clientID: 1, clientSerialNum: 8, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:22 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:22 appendEntriesRPC
+2019/12/02 02:07:22 hostID: 1
+2019/12/02 02:07:22 prevLogIdx: 14
+2019/12/02 02:07:22 prevLogTerm: 1
+2019/12/02 02:07:22 appendEntriesRPC
+2019/12/02 02:07:22 hostID: 0
+2019/12/02 02:07:22 prevLogIdx: 14
+2019/12/02 02:07:22 prevLogTerm: 1
+2019/12/02 02:07:22 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:22 Increment nextIndex for hostID 0 from 15 to 16
+2019/12/02 02:07:22 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:22 Increment nextIndex for hostID 1 from 15 to 16
+2019/12/02 02:07:22 ############ StoreClientData()
+2019/12/02 02:07:22 heartbeatAppendEntriesRPC
+2019/12/02 02:07:22 theirNextIdx: 16
+2019/12/02 02:07:22 appending: term: 1, clientData: first data line 8, clientID: 0, clientSerialNum: 8, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:22 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:22 theirNextIdx: 16
+2019/12/02 02:07:22 appending: term: 1, clientData: first data line 8, clientID: 0, clientSerialNum: 8, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:22 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:22 appendEntriesRPC
+2019/12/02 02:07:22 hostID: 1
+2019/12/02 02:07:22 prevLogIdx: 15
+2019/12/02 02:07:22 prevLogTerm: 1
+2019/12/02 02:07:22 appendEntriesRPC
+2019/12/02 02:07:22 hostID: 0
+2019/12/02 02:07:22 prevLogIdx: 15
+2019/12/02 02:07:22 prevLogTerm: 1
+2019/12/02 02:07:22 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:22 Increment nextIndex for hostID 1 from 16 to 17
+2019/12/02 02:07:22 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:22 Increment nextIndex for hostID 0 from 16 to 17
+2019/12/02 02:07:22 heartbeatAppendEntriesRPC
+2019/12/02 02:07:22 theirNextIdx: 17
+2019/12/02 02:07:22 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:22 theirNextIdx: 17
+2019/12/02 02:07:22 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:22 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:22 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 2, votedYes true||host 0, votedYes true||host 1, votedYes true|]
+2019/12/02 02:07:22 appendEntriesRPC
+2019/12/02 02:07:22 hostID: 1
+2019/12/02 02:07:22 prevLogIdx: 16
+2019/12/02 02:07:22 prevLogTerm: 1
+2019/12/02 02:07:22 appendEntriesRPC
+2019/12/02 02:07:22 hostID: 0
+2019/12/02 02:07:22 prevLogIdx: 16
+2019/12/02 02:07:22 prevLogTerm: 1
+2019/12/02 02:07:22 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:22 Increment nextIndex for hostID 1 from 17 to 17
+2019/12/02 02:07:22 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:22 Increment nextIndex for hostID 0 from 17 to 17
+2019/12/02 02:07:23 ############ StoreClientData()
+2019/12/02 02:07:23 heartbeatAppendEntriesRPC
+2019/12/02 02:07:23 theirNextIdx: 17
+2019/12/02 02:07:23 appending: term: 1, clientData: second data line 9, clientID: 1, clientSerialNum: 9, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:23 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:23 theirNextIdx: 17
+2019/12/02 02:07:23 appending: term: 1, clientData: second data line 9, clientID: 1, clientSerialNum: 9, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:23 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:23 appendEntriesRPC
+2019/12/02 02:07:23 hostID: 1
+2019/12/02 02:07:23 appendEntriesRPC
+2019/12/02 02:07:23 prevLogIdx: 16
+2019/12/02 02:07:23 prevLogTerm: 1
+2019/12/02 02:07:23 hostID: 0
+2019/12/02 02:07:23 prevLogIdx: 16
+2019/12/02 02:07:23 prevLogTerm: 1
+2019/12/02 02:07:23 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:23 Increment nextIndex for hostID 1 from 17 to 18
+2019/12/02 02:07:23 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:23 Increment nextIndex for hostID 0 from 17 to 18
+2019/12/02 02:07:23 ############ StoreClientData()
+2019/12/02 02:07:23 heartbeatAppendEntriesRPC
+2019/12/02 02:07:23 theirNextIdx: 18
+2019/12/02 02:07:23 appending: term: 1, clientData: first data line 9, clientID: 0, clientSerialNum: 9, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:23 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:23 theirNextIdx: 18
+2019/12/02 02:07:23 appending: term: 1, clientData: first data line 9, clientID: 0, clientSerialNum: 9, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:23 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:23 appendEntriesRPC
+2019/12/02 02:07:23 hostID: 1
+2019/12/02 02:07:23 prevLogIdx: 17
+2019/12/02 02:07:23 prevLogTerm: 1
+2019/12/02 02:07:23 appendEntriesRPC
+2019/12/02 02:07:23 hostID: 0
+2019/12/02 02:07:23 prevLogIdx: 17
+2019/12/02 02:07:23 prevLogTerm: 1
+2019/12/02 02:07:23 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:23 Increment nextIndex for hostID 0 from 18 to 19
+2019/12/02 02:07:23 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:23 Increment nextIndex for hostID 1 from 18 to 19
+2019/12/02 02:07:23 heartbeatAppendEntriesRPC
+2019/12/02 02:07:23 theirNextIdx: 19
+2019/12/02 02:07:23 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:23 theirNextIdx: 19
+2019/12/02 02:07:23 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:23 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:23 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:23 appendEntriesRPC
+2019/12/02 02:07:23 hostID: 1
+2019/12/02 02:07:23 prevLogIdx: 18
+2019/12/02 02:07:23 prevLogTerm: 1
+2019/12/02 02:07:23 appendEntriesRPC
+2019/12/02 02:07:23 hostID: 0
+2019/12/02 02:07:23 prevLogIdx: 18
+2019/12/02 02:07:23 prevLogTerm: 1
+2019/12/02 02:07:23 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:23 Increment nextIndex for hostID 0 from 19 to 19
+2019/12/02 02:07:23 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:23 Increment nextIndex for hostID 1 from 19 to 19
+2019/12/02 02:07:24 ############ StoreClientData()
+2019/12/02 02:07:24 heartbeatAppendEntriesRPC
+2019/12/02 02:07:24 theirNextIdx: 19
+2019/12/02 02:07:24 appending: term: 1, clientData: second data line 10, clientID: 1, clientSerialNum: 10, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:24 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:24 theirNextIdx: 19
+2019/12/02 02:07:24 appending: term: 1, clientData: second data line 10, clientID: 1, clientSerialNum: 10, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:24 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:24 appendEntriesRPC
+2019/12/02 02:07:24 appendEntriesRPC
+2019/12/02 02:07:24 hostID: 1
+2019/12/02 02:07:24 prevLogIdx: 18
+2019/12/02 02:07:24 prevLogTerm: 1
+2019/12/02 02:07:24 hostID: 0
+2019/12/02 02:07:24 prevLogIdx: 18
+2019/12/02 02:07:24 prevLogTerm: 1
+2019/12/02 02:07:24 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:24 Increment nextIndex for hostID 0 from 19 to 20
+2019/12/02 02:07:24 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:24 Increment nextIndex for hostID 1 from 19 to 20
+2019/12/02 02:07:24 ############ StoreClientData()
+2019/12/02 02:07:24 heartbeatAppendEntriesRPC
+2019/12/02 02:07:24 theirNextIdx: 20
+2019/12/02 02:07:24 appending: term: 1, clientData: first data line 10, clientID: 0, clientSerialNum: 10, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:24 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:24 theirNextIdx: 20
+2019/12/02 02:07:24 appending: term: 1, clientData: first data line 10, clientID: 0, clientSerialNum: 10, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:24 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:24 appendEntriesRPC
+2019/12/02 02:07:24 hostID: 1
+2019/12/02 02:07:24 prevLogIdx: 19
+2019/12/02 02:07:24 prevLogTerm: 1
+2019/12/02 02:07:24 appendEntriesRPC
+2019/12/02 02:07:24 hostID: 0
+2019/12/02 02:07:24 prevLogIdx: 19
+2019/12/02 02:07:24 prevLogTerm: 1
+2019/12/02 02:07:24 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:24 Increment nextIndex for hostID 0 from 20 to 21
+2019/12/02 02:07:24 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:24 Increment nextIndex for hostID 1 from 20 to 21
+2019/12/02 02:07:24 heartbeatAppendEntriesRPC
+2019/12/02 02:07:24 theirNextIdx: 21
+2019/12/02 02:07:24 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:24 theirNextIdx: 21
+2019/12/02 02:07:24 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:24 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:24 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:24 appendEntriesRPC
+2019/12/02 02:07:24 hostID: 0
+2019/12/02 02:07:24 prevLogIdx: 20
+2019/12/02 02:07:24 prevLogTerm: 1
+2019/12/02 02:07:24 appendEntriesRPC
+2019/12/02 02:07:24 hostID: 1
+2019/12/02 02:07:24 prevLogIdx: 20
+2019/12/02 02:07:24 prevLogTerm: 1
+2019/12/02 02:07:24 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:24 Increment nextIndex for hostID 0 from 21 to 21
+2019/12/02 02:07:24 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:24 Increment nextIndex for hostID 1 from 21 to 21
+2019/12/02 02:07:25 ############ StoreClientData()
+2019/12/02 02:07:25 heartbeatAppendEntriesRPC
+2019/12/02 02:07:25 theirNextIdx: 21
+2019/12/02 02:07:25 appending: term: 1, clientData: second data line 11, clientID: 1, clientSerialNum: 11, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:25 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:25 theirNextIdx: 21
+2019/12/02 02:07:25 appending: term: 1, clientData: second data line 11, clientID: 1, clientSerialNum: 11, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:25 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:25 appendEntriesRPC
+2019/12/02 02:07:25 appendEntriesRPC
+2019/12/02 02:07:25 hostID: 1
+2019/12/02 02:07:25 prevLogIdx: 20
+2019/12/02 02:07:25 hostID: 0
+2019/12/02 02:07:25 prevLogTerm: 1
+2019/12/02 02:07:25 prevLogIdx: 20
+2019/12/02 02:07:25 prevLogTerm: 1
+2019/12/02 02:07:25 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:25 Increment nextIndex for hostID 0 from 21 to 22
+2019/12/02 02:07:25 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:25 Increment nextIndex for hostID 1 from 21 to 22
+2019/12/02 02:07:25 ############ StoreClientData()
+2019/12/02 02:07:25 heartbeatAppendEntriesRPC
+2019/12/02 02:07:25 theirNextIdx: 22
+2019/12/02 02:07:25 appending: term: 1, clientData: first data line 11, clientID: 0, clientSerialNum: 11, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:25 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:25 theirNextIdx: 22
+2019/12/02 02:07:25 appending: term: 1, clientData: first data line 11, clientID: 0, clientSerialNum: 11, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:25 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:25 appendEntriesRPC
+2019/12/02 02:07:25 hostID: 1
+2019/12/02 02:07:25 prevLogIdx: 21
+2019/12/02 02:07:25 prevLogTerm: 1
+2019/12/02 02:07:25 appendEntriesRPC
+2019/12/02 02:07:25 hostID: 0
+2019/12/02 02:07:25 prevLogIdx: 21
+2019/12/02 02:07:25 prevLogTerm: 1
+2019/12/02 02:07:25 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:25 Increment nextIndex for hostID 1 from 22 to 23
+2019/12/02 02:07:25 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:25 Increment nextIndex for hostID 0 from 22 to 23
+2019/12/02 02:07:25 heartbeatAppendEntriesRPC
+2019/12/02 02:07:25 theirNextIdx: 23
+2019/12/02 02:07:25 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:25 theirNextIdx: 23
+2019/12/02 02:07:25 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:25 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 2, votedYes true||host 0, votedYes true||host 1, votedYes true|]
+2019/12/02 02:07:25 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:25 appendEntriesRPC
+2019/12/02 02:07:25 hostID: 1
+2019/12/02 02:07:25 prevLogIdx: 22
+2019/12/02 02:07:25 prevLogTerm: 1
+2019/12/02 02:07:25 appendEntriesRPC
+2019/12/02 02:07:25 hostID: 0
+2019/12/02 02:07:25 prevLogIdx: 22
+2019/12/02 02:07:25 prevLogTerm: 1
+2019/12/02 02:07:25 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:25 Increment nextIndex for hostID 0 from 23 to 23
+2019/12/02 02:07:25 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:25 Increment nextIndex for hostID 1 from 23 to 23
+2019/12/02 02:07:26 ############ StoreClientData()
+2019/12/02 02:07:26 heartbeatAppendEntriesRPC
+2019/12/02 02:07:26 theirNextIdx: 23
+2019/12/02 02:07:26 appending: term: 1, clientData: second data line 12, clientID: 1, clientSerialNum: 12, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:26 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:26 theirNextIdx: 23
+2019/12/02 02:07:26 appending: term: 1, clientData: second data line 12, clientID: 1, clientSerialNum: 12, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:26 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:26 appendEntriesRPC
+2019/12/02 02:07:26 hostID: 0
+2019/12/02 02:07:26 prevLogIdx: 22
+2019/12/02 02:07:26 prevLogTerm: 1
+2019/12/02 02:07:26 appendEntriesRPC
+2019/12/02 02:07:26 hostID: 1
+2019/12/02 02:07:26 prevLogIdx: 22
+2019/12/02 02:07:26 prevLogTerm: 1
+2019/12/02 02:07:26 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:26 Increment nextIndex for hostID 0 from 23 to 24
+2019/12/02 02:07:26 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:26 Increment nextIndex for hostID 1 from 23 to 24
+2019/12/02 02:07:26 ############ StoreClientData()
+2019/12/02 02:07:26 heartbeatAppendEntriesRPC
+2019/12/02 02:07:26 theirNextIdx: 24
+2019/12/02 02:07:26 appending: term: 1, clientData: first data line 12, clientID: 0, clientSerialNum: 12, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:26 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:26 theirNextIdx: 24
+2019/12/02 02:07:26 appending: term: 1, clientData: first data line 12, clientID: 0, clientSerialNum: 12, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:26 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:26 appendEntriesRPC
+2019/12/02 02:07:26 hostID: 1
+2019/12/02 02:07:26 prevLogIdx: 23
+2019/12/02 02:07:26 prevLogTerm: 1
+2019/12/02 02:07:26 appendEntriesRPC
+2019/12/02 02:07:26 hostID: 0
+2019/12/02 02:07:26 prevLogIdx: 23
+2019/12/02 02:07:26 prevLogTerm: 1
+2019/12/02 02:07:26 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:26 Increment nextIndex for hostID 0 from 24 to 25
+2019/12/02 02:07:26 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:26 Increment nextIndex for hostID 1 from 24 to 25
+2019/12/02 02:07:26 heartbeatAppendEntriesRPC
+2019/12/02 02:07:26 theirNextIdx: 25
+2019/12/02 02:07:26 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:26 theirNextIdx: 25
+2019/12/02 02:07:26 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:26 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:26 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 2, votedYes true||host 0, votedYes true||host 1, votedYes true|]
+2019/12/02 02:07:26 appendEntriesRPC
+2019/12/02 02:07:26 hostID: 1
+2019/12/02 02:07:26 prevLogIdx: 24
+2019/12/02 02:07:26 prevLogTerm: 1
+2019/12/02 02:07:26 appendEntriesRPC
+2019/12/02 02:07:26 hostID: 0
+2019/12/02 02:07:26 prevLogIdx: 24
+2019/12/02 02:07:26 prevLogTerm: 1
+2019/12/02 02:07:26 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:26 Increment nextIndex for hostID 1 from 25 to 25
+2019/12/02 02:07:26 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:26 Increment nextIndex for hostID 0 from 25 to 25
+2019/12/02 02:07:27 ############ StoreClientData()
+2019/12/02 02:07:27 heartbeatAppendEntriesRPC
+2019/12/02 02:07:27 theirNextIdx: 25
+2019/12/02 02:07:27 appending: term: 1, clientData: second data line 13, clientID: 1, clientSerialNum: 13, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:27 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:27 theirNextIdx: 25
+2019/12/02 02:07:27 appending: term: 1, clientData: second data line 13, clientID: 1, clientSerialNum: 13, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:27 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:27 appendEntriesRPC
+2019/12/02 02:07:27 hostID: 1
+2019/12/02 02:07:27 prevLogIdx: 24
+2019/12/02 02:07:27 prevLogTerm: 1
+2019/12/02 02:07:27 appendEntriesRPC
+2019/12/02 02:07:27 hostID: 0
+2019/12/02 02:07:27 prevLogIdx: 24
+2019/12/02 02:07:27 prevLogTerm: 1
+2019/12/02 02:07:27 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:27 Increment nextIndex for hostID 1 from 25 to 26
+2019/12/02 02:07:27 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:27 Increment nextIndex for hostID 0 from 25 to 26
+2019/12/02 02:07:27 ############ StoreClientData()
+2019/12/02 02:07:27 heartbeatAppendEntriesRPC
+2019/12/02 02:07:27 theirNextIdx: 26
+2019/12/02 02:07:27 appending: term: 1, clientData: first data line 13, clientID: 0, clientSerialNum: 13, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:27 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:27 theirNextIdx: 26
+2019/12/02 02:07:27 appending: term: 1, clientData: first data line 13, clientID: 0, clientSerialNum: 13, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:27 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:27 appendEntriesRPC
+2019/12/02 02:07:27 hostID: 1
+2019/12/02 02:07:27 prevLogIdx: 25
+2019/12/02 02:07:27 prevLogTerm: 1
+2019/12/02 02:07:27 appendEntriesRPC
+2019/12/02 02:07:27 hostID: 0
+2019/12/02 02:07:27 prevLogIdx: 25
+2019/12/02 02:07:27 prevLogTerm: 1
+2019/12/02 02:07:27 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:27 Increment nextIndex for hostID 1 from 26 to 27
+2019/12/02 02:07:27 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:27 Increment nextIndex for hostID 0 from 26 to 27
+2019/12/02 02:07:27 heartbeatAppendEntriesRPC
+2019/12/02 02:07:27 theirNextIdx: 27
+2019/12/02 02:07:27 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:27 theirNextIdx: 27
+2019/12/02 02:07:27 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:27 appendEntriesRPC
+2019/12/02 02:07:27 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:27 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:27 appendEntriesRPC
+2019/12/02 02:07:27 hostID: 1
+2019/12/02 02:07:27 prevLogIdx: 26
+2019/12/02 02:07:27 prevLogTerm: 1
+2019/12/02 02:07:27 hostID: 0
+2019/12/02 02:07:27 prevLogIdx: 26
+2019/12/02 02:07:27 prevLogTerm: 1
+2019/12/02 02:07:27 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:27 Increment nextIndex for hostID 1 from 27 to 27
+2019/12/02 02:07:27 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:27 Increment nextIndex for hostID 0 from 27 to 27
+2019/12/02 02:07:28 ############ StoreClientData()
+2019/12/02 02:07:28 heartbeatAppendEntriesRPC
+2019/12/02 02:07:28 theirNextIdx: 27
+2019/12/02 02:07:28 appending: term: 1, clientData: second data line 14, clientID: 1, clientSerialNum: 14, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:28 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:28 theirNextIdx: 27
+2019/12/02 02:07:28 appending: term: 1, clientData: second data line 14, clientID: 1, clientSerialNum: 14, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:28 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:28 appendEntriesRPC
+2019/12/02 02:07:28 appendEntriesRPC
+2019/12/02 02:07:28 hostID: 1
+2019/12/02 02:07:28 prevLogIdx: 26
+2019/12/02 02:07:28 hostID: 0
+2019/12/02 02:07:28 prevLogTerm: 1
+2019/12/02 02:07:28 prevLogIdx: 26
+2019/12/02 02:07:28 prevLogTerm: 1
+2019/12/02 02:07:28 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:28 Increment nextIndex for hostID 1 from 27 to 28
+2019/12/02 02:07:28 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:28 Increment nextIndex for hostID 0 from 27 to 28
+2019/12/02 02:07:28 ############ StoreClientData()
+2019/12/02 02:07:28 heartbeatAppendEntriesRPC
+2019/12/02 02:07:28 theirNextIdx: 28
+2019/12/02 02:07:28 appending: term: 1, clientData: first data line 14, clientID: 0, clientSerialNum: 14, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:28 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:28 theirNextIdx: 28
+2019/12/02 02:07:28 appending: term: 1, clientData: first data line 14, clientID: 0, clientSerialNum: 14, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:28 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:28 appendEntriesRPC
+2019/12/02 02:07:28 hostID: 1
+2019/12/02 02:07:28 prevLogIdx: 27
+2019/12/02 02:07:28 prevLogTerm: 1
+2019/12/02 02:07:28 appendEntriesRPC
+2019/12/02 02:07:28 hostID: 0
+2019/12/02 02:07:28 prevLogIdx: 27
+2019/12/02 02:07:28 prevLogTerm: 1
+2019/12/02 02:07:28 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:28 Increment nextIndex for hostID 1 from 28 to 29
+2019/12/02 02:07:28 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:28 Increment nextIndex for hostID 0 from 28 to 29
+2019/12/02 02:07:28 heartbeatAppendEntriesRPC
+2019/12/02 02:07:28 theirNextIdx: 29
+2019/12/02 02:07:28 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:28 theirNextIdx: 29
+2019/12/02 02:07:28 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:28 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:28 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:28 appendEntriesRPC
+2019/12/02 02:07:28 hostID: 0
+2019/12/02 02:07:28 prevLogIdx: 28
+2019/12/02 02:07:28 prevLogTerm: 1
+2019/12/02 02:07:28 appendEntriesRPC
+2019/12/02 02:07:28 hostID: 1
+2019/12/02 02:07:28 prevLogIdx: 28
+2019/12/02 02:07:28 prevLogTerm: 1
+2019/12/02 02:07:28 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:28 Increment nextIndex for hostID 0 from 29 to 29
+2019/12/02 02:07:28 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:28 Increment nextIndex for hostID 1 from 29 to 29
+2019/12/02 02:07:29 ############ StoreClientData()
+2019/12/02 02:07:29 heartbeatAppendEntriesRPC
+2019/12/02 02:07:29 theirNextIdx: 29
+2019/12/02 02:07:29 appending: term: 1, clientData: second data line 15, clientID: 1, clientSerialNum: 15, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:29 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:29 theirNextIdx: 29
+2019/12/02 02:07:29 appending: term: 1, clientData: second data line 15, clientID: 1, clientSerialNum: 15, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:29 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:29 appendEntriesRPC
+2019/12/02 02:07:29 appendEntriesRPC
+2019/12/02 02:07:29 hostID: 1
+2019/12/02 02:07:29 prevLogIdx: 28
+2019/12/02 02:07:29 prevLogTerm: 1
+2019/12/02 02:07:29 hostID: 0
+2019/12/02 02:07:29 prevLogIdx: 28
+2019/12/02 02:07:29 prevLogTerm: 1
+2019/12/02 02:07:29 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:29 Increment nextIndex for hostID 0 from 29 to 30
+2019/12/02 02:07:29 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:29 Increment nextIndex for hostID 1 from 29 to 30
+2019/12/02 02:07:29 ############ StoreClientData()
+2019/12/02 02:07:29 heartbeatAppendEntriesRPC
+2019/12/02 02:07:29 theirNextIdx: 30
+2019/12/02 02:07:29 appending: term: 1, clientData: first data line 15, clientID: 0, clientSerialNum: 15, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:29 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:29 theirNextIdx: 30
+2019/12/02 02:07:29 appending: term: 1, clientData: first data line 15, clientID: 0, clientSerialNum: 15, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:29 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:29 appendEntriesRPC
+2019/12/02 02:07:29 hostID: 1
+2019/12/02 02:07:29 prevLogIdx: 29
+2019/12/02 02:07:29 prevLogTerm: 1
+2019/12/02 02:07:29 appendEntriesRPC
+2019/12/02 02:07:29 hostID: 0
+2019/12/02 02:07:29 prevLogIdx: 29
+2019/12/02 02:07:29 prevLogTerm: 1
+2019/12/02 02:07:29 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:29 Increment nextIndex for hostID 1 from 30 to 31
+2019/12/02 02:07:29 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:29 Increment nextIndex for hostID 0 from 30 to 31
+2019/12/02 02:07:29 heartbeatAppendEntriesRPC
+2019/12/02 02:07:29 theirNextIdx: 31
+2019/12/02 02:07:29 set indexIncrements for host 0 to 0. (previously 1)
+2019/12/02 02:07:29 theirNextIdx: 31
+2019/12/02 02:07:29 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:29 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 1, votedYes true||host 2, votedYes true||host 0, votedYes true|]
+2019/12/02 02:07:29 appendEntriesRPC
+2019/12/02 02:07:29 appendEntriesRPC
+2019/12/02 02:07:29 hostID: 1
+2019/12/02 02:07:29 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 0, votedYes true||host 1, votedYes true||host 2, votedYes true|]
+2019/12/02 02:07:29 hostID: 0
+2019/12/02 02:07:29 prevLogIdx: 30
+2019/12/02 02:07:29 prevLogTerm: 1
+2019/12/02 02:07:29 prevLogIdx: 30
+2019/12/02 02:07:29 prevLogTerm: 1
+2019/12/02 02:07:29 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:29 Increment nextIndex for hostID 0 from 31 to 31
+2019/12/02 02:07:29 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:29 Increment nextIndex for hostID 1 from 31 to 31
+2019/12/02 02:07:30 ############ StoreClientData()
+2019/12/02 02:07:30 heartbeatAppendEntriesRPC
+2019/12/02 02:07:30 theirNextIdx: 31
+2019/12/02 02:07:30 appending: term: 1, clientData: second data line 16, clientID: 1, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:30 set indexIncrements for host 0 to 1. (previously 0)
+2019/12/02 02:07:30 theirNextIdx: 31
+2019/12/02 02:07:30 appending: term: 1, clientData: second data line 16, clientID: 1, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:30 set indexIncrements for host 1 to 1. (previously 0)
+2019/12/02 02:07:30 appendEntriesRPC
+2019/12/02 02:07:30 hostID: 1
+2019/12/02 02:07:30 prevLogIdx: 30
+2019/12/02 02:07:30 prevLogTerm: 1
+2019/12/02 02:07:30 appendEntriesRPC
+2019/12/02 02:07:30 hostID: 0
+2019/12/02 02:07:30 prevLogIdx: 30
+2019/12/02 02:07:30 prevLogTerm: 1
+2019/12/02 02:07:30 appendEntriesRPC result. host: 0, success: true
+2019/12/02 02:07:30 Increment nextIndex for hostID 0 from 31 to 32
+2019/12/02 02:07:30 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:30 Increment nextIndex for hostID 1 from 31 to 32
+2019/12/02 02:07:30 ############ StoreClientData()
+2019/12/02 02:07:30 heartbeatAppendEntriesRPC
+2019/12/02 02:07:30 theirNextIdx: 32
+2019/12/02 02:07:30 appending: term: 1, clientData: first data line 16, clientID: 0, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:30 set indexIncrements for host 0 to 1. (previously 1)
+2019/12/02 02:07:30 theirNextIdx: 32
+2019/12/02 02:07:30 appending: term: 1, clientData: first data line 16, clientID: 0, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:30 set indexIncrements for host 1 to 1. (previously 1)
+2019/12/02 02:07:30 appendEntriesRPC
+2019/12/02 02:07:30 hostID: 1
+2019/12/02 02:07:30 prevLogIdx: 31
+2019/12/02 02:07:30 prevLogTerm: 1
+2019/12/02 02:07:30 appendEntriesRPC
+2019/12/02 02:07:30 hostID: 0
+2019/12/02 02:07:30 prevLogIdx: 31
+2019/12/02 02:07:30 prevLogTerm: 1
+2019/12/02 02:07:30 WARNING: problem dialing peer: Peer IP: 172.18.0.2, Port: 10000, Hostname: r0, err: dial tcp 172.18.0.2:10000: connect: connection refused
+2019/12/02 02:07:30 appendEntriesRPC result. host: 0, success: false
+2019/12/02 02:07:30 Decrement nextIndex for hostID 0 from 32 to 31
+2019/12/02 02:07:30 appendEntriesRPC result. host: 1, success: true
+2019/12/02 02:07:30 Increment nextIndex for hostID 1 from 32 to 33
+2019/12/02 02:07:30 FINISH EXPERIMENT...
+2019/12/02 02:07:30 Log. 
+[{index=0, entry=term: -1, clientData: LOG_START, clientID: -1, clientSerialNum: -1, clientResponse: ClientResponse Success=false, Leader=0
+},{index=1, entry=term: 1, clientData: second data line 1, clientID: 1, clientSerialNum: 1, clientResponse: ClientResponse Success=true, Leader=2
+},{index=2, entry=term: 1, clientData: first data line 1, clientID: 0, clientSerialNum: 1, clientResponse: ClientResponse Success=true, Leader=2
+},{index=3, entry=term: 1, clientData: second data line 2, clientID: 1, clientSerialNum: 2, clientResponse: ClientResponse Success=true, Leader=2
+},{index=4, entry=term: 1, clientData: first data line 2, clientID: 0, clientSerialNum: 2, clientResponse: ClientResponse Success=true, Leader=2
+},{index=5, entry=term: 1, clientData: second data line 3, clientID: 1, clientSerialNum: 3, clientResponse: ClientResponse Success=true, Leader=2
+},{index=6, entry=term: 1, clientData: first data line 3, clientID: 0, clientSerialNum: 3, clientResponse: ClientResponse Success=true, Leader=2
+},{index=7, entry=term: 1, clientData: second data line 4, clientID: 1, clientSerialNum: 4, clientResponse: ClientResponse Success=true, Leader=2
+},{index=8, entry=term: 1, clientData: first data line 4, clientID: 0, clientSerialNum: 4, clientResponse: ClientResponse Success=true, Leader=2
+},{index=9, entry=term: 1, clientData: second data line 5, clientID: 1, clientSerialNum: 5, clientResponse: ClientResponse Success=true, Leader=2
+},{index=10, entry=term: 1, clientData: first data line 5, clientID: 0, clientSerialNum: 5, clientResponse: ClientResponse Success=true, Leader=2
+},{index=11, entry=term: 1, clientData: second data line 6, clientID: 1, clientSerialNum: 6, clientResponse: ClientResponse Success=true, Leader=2
+},{index=12, entry=term: 1, clientData: first data line 6, clientID: 0, clientSerialNum: 6, clientResponse: ClientResponse Success=true, Leader=2
+},{index=13, entry=term: 1, clientData: second data line 7, clientID: 1, clientSerialNum: 7, clientResponse: ClientResponse Success=true, Leader=2
+},{index=14, entry=term: 1, clientData: first data line 7, clientID: 0, clientSerialNum: 7, clientResponse: ClientResponse Success=true, Leader=2
+},{index=15, entry=term: 1, clientData: second data line 8, clientID: 1, clientSerialNum: 8, clientResponse: ClientResponse Success=true, Leader=2
+},{index=16, entry=term: 1, clientData: first data line 8, clientID: 0, clientSerialNum: 8, clientResponse: ClientResponse Success=true, Leader=2
+},{index=17, entry=term: 1, clientData: second data line 9, clientID: 1, clientSerialNum: 9, clientResponse: ClientResponse Success=true, Leader=2
+},{index=18, entry=term: 1, clientData: first data line 9, clientID: 0, clientSerialNum: 9, clientResponse: ClientResponse Success=true, Leader=2
+},{index=19, entry=term: 1, clientData: second data line 10, clientID: 1, clientSerialNum: 10, clientResponse: ClientResponse Success=true, Leader=2
+},{index=20, entry=term: 1, clientData: first data line 10, clientID: 0, clientSerialNum: 10, clientResponse: ClientResponse Success=true, Leader=2
+},{index=21, entry=term: 1, clientData: second data line 11, clientID: 1, clientSerialNum: 11, clientResponse: ClientResponse Success=true, Leader=2
+},{index=22, entry=term: 1, clientData: first data line 11, clientID: 0, clientSerialNum: 11, clientResponse: ClientResponse Success=true, Leader=2
+},{index=23, entry=term: 1, clientData: second data line 12, clientID: 1, clientSerialNum: 12, clientResponse: ClientResponse Success=true, Leader=2
+},{index=24, entry=term: 1, clientData: first data line 12, clientID: 0, clientSerialNum: 12, clientResponse: ClientResponse Success=true, Leader=2
+},{index=25, entry=term: 1, clientData: second data line 13, clientID: 1, clientSerialNum: 13, clientResponse: ClientResponse Success=true, Leader=2
+},{index=26, entry=term: 1, clientData: first data line 13, clientID: 0, clientSerialNum: 13, clientResponse: ClientResponse Success=true, Leader=2
+},{index=27, entry=term: 1, clientData: second data line 14, clientID: 1, clientSerialNum: 14, clientResponse: ClientResponse Success=true, Leader=2
+},{index=28, entry=term: 1, clientData: first data line 14, clientID: 0, clientSerialNum: 14, clientResponse: ClientResponse Success=true, Leader=2
+},{index=29, entry=term: 1, clientData: second data line 15, clientID: 1, clientSerialNum: 15, clientResponse: ClientResponse Success=true, Leader=2
+},{index=30, entry=term: 1, clientData: first data line 15, clientID: 0, clientSerialNum: 15, clientResponse: ClientResponse Success=true, Leader=2
+},{index=31, entry=term: 1, clientData: second data line 16, clientID: 1, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+},{index=32, entry=term: 1, clientData: first data line 16, clientID: 0, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+},]
+2019/12/02 02:07:30 heartbeatAppendEntriesRPC
+2019/12/02 02:07:30 theirNextIdx: 31
+2019/12/02 02:07:30 appending: term: 1, clientData: second data line 16, clientID: 1, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:30 appending: term: 1, clientData: first data line 16, clientID: 0, clientSerialNum: 16, clientResponse: ClientResponse Success=true, Leader=2
+2019/12/02 02:07:30 set indexIncrements for host 0 to 2. (previously 1)
+2019/12/02 02:07:30 theirNextIdx: 33
+2019/12/02 02:07:30 set indexIncrements for host 1 to 0. (previously 1)
+2019/12/02 02:07:30 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 3, Votes: [|host 2, votedYes true||host 0, votedYes true||host 1, votedYes true|]
+2019/12/02 02:07:30 Checking COMMIT IDX majority. nVoters: 3, nReq: 2, nFound: 2, Votes: [|host 2, votedYes true||host 0, votedYes false||host 1, votedYes true|]
+2019/12/02 02:07:30 appendEntriesRPC
+2019/12/02 02:07:30 hostID: 1
+2019/12/02 02:07:30 prevLogIdx: 32
+2019/12/02 02:07:30 prevLogTerm: 1
+2019/12/02 02:07:30 appendEntriesRPC
+2019/12/02 02:07:30 hostID: 0
+2019/12/02 02:07:30 prevLogIdx: 30
+2019/12/02 02:07:30 prevLogTerm: 1
+2019/12/02 02:07:30 StateMachine. 
+clientSerialNums: [{client=0, serialNum=15},{client=1, serialNum=15},].
+contents: [{index=0, entry=STATE_MACHINE_START},
+{index=1, entry=second data line 1},
+{index=2, entry=first data line 1},
+{index=3, entry=second data line 2},
+{index=4, entry=first data line 2},
+{index=5, entry=second data line 3},
+{index=6, entry=first data line 3},
+{index=7, entry=second data line 4},
+{index=8, entry=first data line 4},
+{index=9, entry=second data line 5},
+{index=10, entry=first data line 5},
+{index=11, entry=second data line 6},
+{index=12, entry=first data line 6},
+{index=13, entry=second data line 7},
+{index=14, entry=first data line 7},
+{index=15, entry=second data line 8},
+{index=16, entry=first data line 8},
+{index=17, entry=second data line 9},
+{index=18, entry=first data line 9},
+{index=19, entry=second data line 10},
+{index=20, entry=first data line 10},
+{index=21, entry=second data line 11},
+{index=22, entry=first data line 11},
+{index=23, entry=second data line 12},
+{index=24, entry=first data line 12},
+{index=25, entry=second data line 13},
+{index=26, entry=first data line 13},
+{index=27, entry=second data line 14},
+{index=28, entry=first data line 14},
+{index=29, entry=second data line 15},
+{index=30, entry=first data line 15},
+]
