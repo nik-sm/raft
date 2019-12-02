@@ -92,7 +92,7 @@ type Log []LogEntry
 func (r *RaftNode) haveNewerSerialNum(cid ClientID, csn ClientSerialNum) (bool, ClientResponse) {
 	mostRecent := r.StateMachine.ClientSerialNums[cid]
 	if int(mostRecent) >= int(csn) {
-		// NOTE - TODO - the client should keep sending the item with this serial num until it lands.
+		// NOTE - the client should keep sending the item with this serial num until it lands.
 		// Therefore, if we have seen a higher serial num, the client MUST have successfully submitted this item,
 		// and it will exist in our log
 		// NOTE - if we do log compaction, we might have thrown away the previous log entry
@@ -229,8 +229,6 @@ type RaftNode struct {
 	// Volatile State (leader only, reset after each election)
 	nextIndex  map[HostID]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
 	matchIndex map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
-	//indexIncrements map[HostID]int      // length of the entries list we have sent to each peer
-	// TODO - notice that indexIncrements approach is flawed because we may receive the successful response to a previous heartbeat when the indexIncrement has already been set to a positive number. This would mean we bump that follower's nextIndex value an extra time, and get an out-of-bounds panic.
 
 	// Convenience variables
 	sync.Mutex                          // control acess from multiple goroutines. Notice we can now just do r.Lock() instead of r.mut.Lock()
@@ -314,7 +312,6 @@ func NewRaftNode(id HostID, recvPort int, hosts HostMap, clients ClientMap, quit
 
 		nextIndex:  make(map[HostID]LogIndex),
 		matchIndex: make(map[HostID]LogIndex),
-		//indexIncrements: make(map[HostID]int),
 
 		incomingChan:       make(chan incomingMsg),
 		hosts:              hosts,

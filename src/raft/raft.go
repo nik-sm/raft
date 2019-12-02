@@ -48,7 +48,6 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	r.currentLeader = leaderID
 	r.nextIndex = nil
 	r.matchIndex = nil
-	//r.indexIncrements = nil
 	r.VotedFor = -1
 }
 
@@ -66,12 +65,10 @@ func (r *RaftNode) shiftToLeader() {
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
 	r.matchIndex = make(map[HostID]LogIndex)
-	//r.indexIncrements = make(map[HostID]int)
 
 	for peerID := range r.hosts {
 		r.nextIndex[peerID] = r.getLastLogIndex() + 1
 		r.matchIndex[peerID] = LogIndex(0)
-		//r.indexIncrements[peerID] = 0
 	}
 }
 
@@ -105,6 +102,8 @@ func (r *RaftNode) shiftToCandidate() {
 // client may choose to retry at us or another random node.
 // TODO - need a version of StoreClientData that ensures some form of commitment after leader responds to a message?
 func (r *RaftNode) StoreClientData(cd ClientDataStruct, response *ClientResponse) error {
+	r.Lock()
+	defer r.Unlock()
 	if r.verbose {
 		log.Println("############ StoreClientData()")
 	}
@@ -177,10 +176,8 @@ func (r *RaftNode) updateCommitIndex() {
 }
 
 // Based on our commit index, apply any log entries that are ready for commit
+// This function should be idempotent and safe to apply often.
 func (r *RaftNode) executeLog() {
-	// TODO - this function should be idempotent and safe to apply often
-	// TODO - need some stateMachine variable that represents a set of applied log entries
-	// TODO - update commit index
 	for r.commitIndex > r.lastApplied {
 		r.lastApplied++
 		r.StateMachine.apply(r.Log[r.lastApplied])
@@ -217,7 +214,7 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, response *RPCResponse) 
 		return nil
 	}
 
-	// TODO - shifting to follower each time is slightly inefficient, but keeps things uniform
+	// NOTE - shifting to follower each time might sound misleading, but keeps things uniform
 	r.shiftToFollower(ae.Term, ae.LeaderID)
 
 	// Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm
@@ -285,8 +282,6 @@ func (r *RaftNode) CandidateLooksEligible(candLastLogIdx LogIndex, candLastLogTe
 	}
 	return candLastLogTerm >= ourLastLogTerm
 }
-
-// TODO - need to decide where to compare lastApplied to commitIndex, and apply log entries to our local state machine
 
 // Vote is called by RPC from a candidate. We can observe the following from the raft.github.io simulation:
 //	1) If we get a requestVoteRPC from a future term, we immediately jump to that term and send our vote
@@ -429,7 +424,6 @@ func (r *RaftNode) protocol() {
 						r.matchIndex[m.hostID] = prev
 						r.nextIndex[m.hostID] = next
 					}
-					// TODO - update commit index or nextIndex[] and matchIndex[] based on response
 					r.executeLog()
 				}
 				r.Unlock()

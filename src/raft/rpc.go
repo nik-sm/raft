@@ -34,8 +34,6 @@ func (ae AppendEntriesStruct) String() string {
 //   if they are up to date, we send an empty message
 //   if they are trailing behind, we send them the log entry at nextIndex[hostID].
 //     if they reject this entry, we decrement their index
-// TODO - this function should have some locking (we don't want to send heartbeats if we are no longer leader!)
-// 		  however, there seems to be a deadlock when adding locks here
 func (r *RaftNode) heartbeatAppendEntriesRPC() {
 	if r.verbose {
 		log.Println("heartbeatAppendEntriesRPC")
@@ -57,13 +55,6 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 				}
 			}
 
-			// Send the entries and get response
-			// r.Lock()
-			//if r.verbose {
-			//	log.Printf("set indexIncrements for host %d to %d. (previously %d)", hostID, len(entries), r.indexIncrements[hostID])
-			//}
-			//r.indexIncrements[hostID] = len(entries)
-			// r.Unlock()
 			go r.appendEntriesRPC(hostID, entries)
 		}
 	}
@@ -154,11 +145,6 @@ func (r *RaftNode) requestVoteRPC(hostID HostID) {
 	r.incomingChan <- incomingMsg{msgType: vote, hostID: hostID, response: response}
 }
 
-// TODO - // We need to check the clientSerialNum 2 times:
-//	1) When receiving a request, we check the statemachine before trying to put the request into the log
-//  2) When applying the log to the statemachine (which still needs to happen somewhere!!!!), we first
-// 			check a log entry's serialnum against the most recent serial num per client
-
 // ClientSerialNum is a unique, monotonically increasing integer that each client attaches to their requests
 // The state machine includes a map of clients and their most recently executed serial num
 // If a request is received with a stale ClientSerialNum, the leader can immediately reply "success"
@@ -171,8 +157,6 @@ type ClientDataStruct struct {
 	ClientSerialNum ClientSerialNum
 }
 
-// TODO - confirm that we need a pointer receiver here, so that rpc can
-// invoke methods on the same RaftNode object we use elsewhere?
 func (r *RaftNode) recvDaemon() {
 	rpcServer := rpc.NewServer()
 	err := rpcServer.Register(r)
@@ -193,8 +177,6 @@ func (r *RaftNode) recvDaemon() {
 			if err != nil {
 				panic(fmt.Sprintf("accept error: %s", err))
 			}
-			// TODO - Do we need to do extra work to kill this goroutine if we want to kill this raftnode?
-			// should this be used without goroutine?
 			go rpcServer.ServeConn(conn)
 		}
 	}
