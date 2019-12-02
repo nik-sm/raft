@@ -177,18 +177,7 @@ func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
 }
 
-// Client sends lines from a fixed data file to the raft leader
-func Client() {
-	flag.Parse()
-
-	hosts := make(raft.HostMap)
-	clients := make(raft.ClientMap)
-	quitChan := make(chan bool)
-
-	intID, recvPort := raft.ResolveAllPeers(hosts, clients, hostfile, false)
-
-	id := raft.ClientID(intID)
-
+func NewClientNode(id raft.ClientID, recvPort int, hosts raft.HostMap, clients raft.ClientMap, quitChan chan bool) *ClientNode {
 	c := ClientNode{
 		id:            id,
 		recvPort:      recvPort,
@@ -200,6 +189,21 @@ func Client() {
 		datafile:      datafile,
 		quitChan:      quitChan,
 		retryTimeout:  time.Duration(1 * time.Second)}
+	return &c
+}
+
+// Client sends lines from a fixed data file to the raft leader
+func Client() {
+	flag.Parse()
+
+	hosts := make(raft.HostMap)
+	clients := make(raft.ClientMap)
+	quitChan := make(chan bool)
+
+	intID, recvPort := raft.ResolveAllPeers(hosts, clients, hostfile, false)
+	id := raft.ClientID(intID)
+	c := NewClientNode(id, recvPort, hosts, clients, quitChan)
+
 	go c.protocol()
 	go c.quitter(duration)
 	<-quitChan

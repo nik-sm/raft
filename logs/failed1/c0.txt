@@ -1,0 +1,192 @@
+datafile: datafile.txt
+2019/12/01 23:13:50 resolve host:  r0
+2019/12/01 23:13:50 found:  172.22.0.6
+2019/12/01 23:13:50 resolve host:  r1
+2019/12/01 23:13:50 found:  172.22.0.5
+2019/12/01 23:13:50 resolve host:  r2
+2019/12/01 23:13:50 found:  172.22.0.4
+2019/12/01 23:13:50 resolve client:  c0
+2019/12/01 23:13:50 found:  172.22.0.3
+2019/12/01 23:13:50 resolve client:  c1
+2019/12/01 23:13:50 found:  172.22.0.2
+2019/12/01 23:13:50 client begin send data loop
+2019/12/01 23:13:50 Unknown leader...
+2019/12/01 23:13:50 Sending data: first data line 1 to host: 1
+2019/12/01 23:13:50 Warning: problem dialing host:dial tcp 172.22.0.5:10001: connect: connection refused
+2019/12/01 23:13:50 Tried leader 1, result false
+2019/12/01 23:13:50 Sending data: first data line 1 to host: 2
+2019/12/01 23:13:50 Warning: problem dialing host:dial tcp 172.22.0.4:10002: connect: connection refused
+2019/12/01 23:13:50 Tried leader 2, result false
+2019/12/01 23:13:50 Sending data: first data line 1 to host: 0
+2019/12/01 23:13:50 Warning: problem dialing host:dial tcp 172.22.0.6:10000: connect: connection refused
+2019/12/01 23:13:50 Tried leader 0, result false
+2019/12/01 23:13:51 Unknown leader...
+2019/12/01 23:13:51 Sending data: first data line 1 to host: 0
+2019/12/01 23:13:51 Tried leader 0, result false
+2019/12/01 23:13:51 Sending data: first data line 1 to host: 1
+2019/12/01 23:13:51 Tried leader 1, result false
+2019/12/01 23:13:51 Sending data: first data line 1 to host: 2
+2019/12/01 23:13:51 Tried leader 2, result false
+2019/12/01 23:13:52 Unknown leader...
+2019/12/01 23:13:52 Sending data: first data line 1 to host: 0
+2019/12/01 23:13:52 Tried leader 0, result false
+2019/12/01 23:13:52 Sending data: first data line 1 to host: 1
+2019/12/01 23:13:52 Tried leader 1, result false
+2019/12/01 23:13:52 Sending data: first data line 1 to host: 2
+2019/12/01 23:13:52 Tried leader 2, result false
+2019/12/01 23:13:53 Unknown leader...
+2019/12/01 23:13:53 Sending data: first data line 1 to host: 0
+2019/12/01 23:13:53 Tried leader 0, result false
+2019/12/01 23:13:53 Sending data: first data line 1 to host: 1
+2019/12/01 23:13:53 Tried leader 1, result false
+2019/12/01 23:13:53 Sending data: first data line 1 to host: 2
+2019/12/01 23:13:53 Tried leader 2, result false
+2019/12/01 23:13:54 Unknown leader...
+2019/12/01 23:13:54 Sending data: first data line 1 to host: 0
+2019/12/01 23:13:54 Tried leader 0, result true
+2019/12/01 23:13:55 client begin send data loop
+2019/12/01 23:13:55 Unknown leader...
+2019/12/01 23:13:55 Sending data: first data line 2 to host: 0
+2019/12/01 23:13:55 Tried leader 0, result true
+2019/12/01 23:13:56 client begin send data loop
+2019/12/01 23:13:56 Unknown leader...
+2019/12/01 23:13:56 Sending data: first data line 3 to host: 0
+2019/12/01 23:13:56 Tried leader 0, result true
+2019/12/01 23:13:57 client begin send data loop
+2019/12/01 23:13:57 Unknown leader...
+2019/12/01 23:13:57 Sending data: first data line 4 to host: 0
+2019/12/01 23:13:57 Tried leader 0, result true
+2019/12/01 23:13:58 client begin send data loop
+2019/12/01 23:13:58 Unknown leader...
+2019/12/01 23:13:58 Sending data: first data line 5 to host: 2
+2019/12/01 23:13:58 Tried leader 2, result false
+2019/12/01 23:13:58 Sending data: first data line 5 to host: 0
+2019/12/01 23:13:58 Tried leader 0, result true
+2019/12/01 23:13:59 client begin send data loop
+2019/12/01 23:13:59 Sending data: first data line 6 to host: 0
+2019/12/01 23:13:59 tried sending to known leader: 0, result true
+2019/12/01 23:14:00 client begin send data loop
+2019/12/01 23:14:00 Sending data: first data line 7 to host: 0
+2019/12/01 23:14:00 tried sending to known leader: 0, result true
+2019/12/01 23:14:01 client begin send data loop
+2019/12/01 23:14:01 Sending data: first data line 8 to host: 0
+2019/12/01 23:14:01 tried sending to known leader: 0, result true
+2019/12/01 23:14:02 client begin send data loop
+2019/12/01 23:14:02 Sending data: first data line 9 to host: 0
+2019/12/01 23:14:02 tried sending to known leader: 0, result true
+2019/12/01 23:14:03 client begin send data loop
+2019/12/01 23:14:03 Sending data: first data line 10 to host: 0
+2019/12/01 23:14:03 tried sending to known leader: 0, result true
+2019/12/01 23:14:04 client begin send data loop
+2019/12/01 23:14:04 Sending data: first data line 11 to host: 0
+2019/12/01 23:14:04 tried sending to known leader: 0, result true
+2019/12/01 23:14:05 client begin send data loop
+2019/12/01 23:14:05 Sending data: first data line 12 to host: 0
+2019/12/01 23:14:05 tried sending to known leader: 0, result true
+2019/12/01 23:14:06 client begin send data loop
+2019/12/01 23:14:06 Sending data: first data line 13 to host: 0
+2019/12/01 23:14:06 tried sending to known leader: 0, result true
+2019/12/01 23:14:07 client begin send data loop
+2019/12/01 23:14:07 Sending data: first data line 14 to host: 0
+2019/12/01 23:14:07 tried sending to known leader: 0, result true
+2019/12/01 23:14:08 client begin send data loop
+2019/12/01 23:14:08 Sending data: first data line 15 to host: 0
+2019/12/01 23:14:08 tried sending to known leader: 0, result true
+2019/12/01 23:14:09 client begin send data loop
+2019/12/01 23:14:09 Sending data: first data line 16 to host: 0
+2019/12/01 23:14:09 tried sending to known leader: 0, result true
+2019/12/01 23:14:10 CLIENT FINISHED
+2019/12/01 23:17:01 resolve host:  r0
+2019/12/01 23:17:01 found:  172.22.0.4
+2019/12/01 23:17:01 resolve host:  r1
+2019/12/01 23:17:01 found:  172.22.0.5
+2019/12/01 23:17:01 resolve host:  r2
+2019/12/01 23:17:01 found:  172.22.0.6
+2019/12/01 23:17:01 resolve client:  c0
+2019/12/01 23:17:01 found:  172.22.0.3
+2019/12/01 23:17:01 resolve client:  c1
+datafile: datafile.txt
+2019/12/01 23:17:01 found:  172.22.0.2
+2019/12/01 23:17:01 client begin send data loop
+2019/12/01 23:17:01 Unknown leader...
+2019/12/01 23:17:01 Sending data: first data line 1 to host: 1
+2019/12/01 23:17:02 Tried leader 1, result false
+2019/12/01 23:17:02 Sending data: first data line 1 to host: 2
+2019/12/01 23:17:02 Tried leader 2, result false
+2019/12/01 23:17:02 Sending data: first data line 1 to host: 0
+2019/12/01 23:17:02 Tried leader 0, result false
+2019/12/01 23:17:03 Unknown leader...
+2019/12/01 23:17:03 Sending data: first data line 1 to host: 0
+2019/12/01 23:17:03 Tried leader 0, result false
+2019/12/01 23:17:03 Sending data: first data line 1 to host: 1
+2019/12/01 23:17:03 Tried leader 1, result false
+2019/12/01 23:17:03 Sending data: first data line 1 to host: 2
+2019/12/01 23:17:03 Tried leader 2, result false
+2019/12/01 23:17:04 Unknown leader...
+2019/12/01 23:17:04 Sending data: first data line 1 to host: 0
+2019/12/01 23:17:04 Tried leader 0, result false
+2019/12/01 23:17:04 Sending data: first data line 1 to host: 1
+2019/12/01 23:17:04 Tried leader 1, result false
+2019/12/01 23:17:04 Sending data: first data line 1 to host: 2
+2019/12/01 23:17:04 Tried leader 2, result false
+2019/12/01 23:17:05 Unknown leader...
+2019/12/01 23:17:05 Sending data: first data line 1 to host: 1
+2019/12/01 23:17:05 Tried leader 1, result false
+2019/12/01 23:17:05 Sending data: first data line 1 to host: 2
+2019/12/01 23:17:05 Tried leader 2, result false
+2019/12/01 23:17:05 Sending data: first data line 1 to host: 0
+2019/12/01 23:17:05 Tried leader 0, result false
+2019/12/01 23:17:06 Unknown leader...
+2019/12/01 23:17:06 Sending data: first data line 1 to host: 0
+2019/12/01 23:17:06 Tried leader 0, result true
+2019/12/01 23:17:07 client begin send data loop
+2019/12/01 23:17:07 Unknown leader...
+2019/12/01 23:17:07 Sending data: first data line 2 to host: 0
+2019/12/01 23:17:07 Tried leader 0, result true
+2019/12/01 23:17:08 client begin send data loop
+2019/12/01 23:17:08 Unknown leader...
+2019/12/01 23:17:08 Sending data: first data line 3 to host: 0
+2019/12/01 23:17:08 Tried leader 0, result true
+2019/12/01 23:17:09 client begin send data loop
+2019/12/01 23:17:09 Unknown leader...
+2019/12/01 23:17:09 Sending data: first data line 4 to host: 0
+2019/12/01 23:17:09 Tried leader 0, result true
+2019/12/01 23:17:10 client begin send data loop
+2019/12/01 23:17:10 Unknown leader...
+2019/12/01 23:17:10 Sending data: first data line 5 to host: 2
+2019/12/01 23:17:10 Tried leader 2, result false
+2019/12/01 23:17:10 Sending data: first data line 5 to host: 0
+2019/12/01 23:17:10 Tried leader 0, result true
+2019/12/01 23:17:11 client begin send data loop
+2019/12/01 23:17:11 Sending data: first data line 6 to host: 0
+2019/12/01 23:17:11 tried sending to known leader: 0, result true
+2019/12/01 23:17:12 client begin send data loop
+2019/12/01 23:17:12 Sending data: first data line 7 to host: 0
+2019/12/01 23:17:12 tried sending to known leader: 0, result true
+2019/12/01 23:17:13 client begin send data loop
+2019/12/01 23:17:13 Sending data: first data line 8 to host: 0
+2019/12/01 23:17:13 tried sending to known leader: 0, result true
+2019/12/01 23:17:14 client begin send data loop
+2019/12/01 23:17:14 Sending data: first data line 9 to host: 0
+2019/12/01 23:17:14 tried sending to known leader: 0, result true
+2019/12/01 23:17:15 client begin send data loop
+2019/12/01 23:17:15 Sending data: first data line 10 to host: 0
+2019/12/01 23:17:15 tried sending to known leader: 0, result true
+2019/12/01 23:17:16 client begin send data loop
+2019/12/01 23:17:16 Sending data: first data line 11 to host: 0
+2019/12/01 23:17:16 tried sending to known leader: 0, result true
+2019/12/01 23:17:17 client begin send data loop
+2019/12/01 23:17:17 Sending data: first data line 12 to host: 0
+panic: unexpected EOF
+
+goroutine 25 [running]:
+client.(*ClientNode).syncSendDataToHost(0xc0000f4480, 0xc0001420c8, 0x12, 0x0, 0x0, 0x0)
+	/go/src/client/client.go:103 +0x446
+client.(*ClientNode).trySendLeader(0xc0000f4480, 0xc0001420c8, 0x12, 0x0, 0x2)
+	/go/src/client/client.go:109 +0x4d
+client.(*ClientNode).sendData(0xc0000f4480, 0xc0001420c8, 0x12)
+	/go/src/client/client.go:127 +0xd7
+client.(*ClientNode).protocol(0xc0000f4480)
+	/go/src/client/client.go:153 +0xbd
+created by client.Client
+	/go/src/client/client.go:207 +0x207
