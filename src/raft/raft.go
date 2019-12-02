@@ -359,6 +359,16 @@ func min(x LogIndex, y LogIndex) LogIndex {
 	return y
 }
 
+// Start is the entrypoint for a raft node (constructed here or in a test) to begin the protocol
+func (r *RaftNode) Start() {
+	go r.recvDaemon()
+	go r.protocol()
+	go r.quitter(duration)
+	<-r.quitChan
+	log.Println("FINISH EXPERIMENT...")
+	r.printResults()
+}
+
 // Main Raft protocol
 func (r *RaftNode) protocol() {
 	r.resetTickers()
@@ -494,11 +504,6 @@ func Raft() {
 	r := NewRaftNode(id, recvPort, hosts, clients, quitChan)
 
 	log.Printf("RaftNode: %s", r.String())
+	r.Start()
 
-	go r.recvDaemon(quitChan)
-	go r.protocol()
-	go r.quitter(duration)
-	<-quitChan
-	log.Println("FINISH EXPERIMENT...")
-	r.printResults()
 }

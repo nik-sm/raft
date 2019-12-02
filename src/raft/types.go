@@ -31,21 +31,21 @@ const (
 )
 
 // Peer represents the network information for a RaftNode
-type peer struct {
+type Peer struct {
 	IP       net.IP
 	Port     int
 	Hostname string
 }
 
-func (p peer) String() string {
+func (p Peer) String() string {
 	return fmt.Sprintf("Peer IP: %s, Port: %d, Hostname: %s", p.IP.String(), p.Port, p.Hostname)
 }
 
 // HostMap associates a raft host's ID with their net info
-type HostMap map[HostID]peer
+type HostMap map[HostID]Peer
 
 // ClientMap associates a raft client's ID with their net info
-type ClientMap map[ClientID]peer
+type ClientMap map[ClientID]Peer
 
 type hostStringMap map[HostID]raftNodeJSON
 type clientStringMap map[ClientID]clientNodeJSON

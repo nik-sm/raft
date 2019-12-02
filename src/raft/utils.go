@@ -71,7 +71,7 @@ func ResolvePeersOnce(hosts HostMap, clients ClientMap, h hostStringMap, c clien
 		if err == nil {
 			ip := net.ParseIP(sendAddrs[0])
 			log.Println("found: ", ip.String())
-			hosts[i] = peer{IP: ip, Port: node.Port, Hostname: hostname}
+			hosts[i] = Peer{IP: ip, Port: node.Port, Hostname: hostname}
 			delete(h, i)
 		}
 	}
@@ -84,7 +84,7 @@ func ResolvePeersOnce(hosts HostMap, clients ClientMap, h hostStringMap, c clien
 		if err == nil {
 			ip := net.ParseIP(sendAddrs[0])
 			log.Println("found: ", ip.String())
-			clients[i] = peer{IP: ip, Port: node.Port, Hostname: clientname}
+			clients[i] = Peer{IP: ip, Port: node.Port, Hostname: clientname}
 			delete(c, i)
 		}
 	}

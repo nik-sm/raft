@@ -179,7 +179,7 @@ type ClientDataStruct struct {
 
 // TODO - confirm that we need a pointer receiver here, so that rpc can
 // invoke methods on the same RaftNode object we use elsewhere?
-func (r *RaftNode) recvDaemon(quitChan <-chan bool) {
+func (r *RaftNode) recvDaemon() {
 	err := rpc.Register(r)
 	if err != nil {
 		panic(err)
@@ -190,7 +190,7 @@ func (r *RaftNode) recvDaemon(quitChan <-chan bool) {
 	}
 	for {
 		select {
-		case <-quitChan:
+		case <-r.quitChan:
 			log.Println("QUIT RECV DAEMON")
 			return
 		default:
