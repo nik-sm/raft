@@ -14,6 +14,9 @@ The default configuration runs a cluster of 3 Raft nodes, with 2 client nodes.
 - Every 1s, each client node will send the next line from their data file to
   the cluster to be applied to the state machine.
 
+View documentation and testable examples with `godoc -http=:6060` and browse to `localhost:6060`.
+
+
 ## Inspecting output
 
 The easiest way to view the "results" of an experiment is to check the final
