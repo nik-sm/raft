@@ -46,7 +46,7 @@ func (r *RaftNode) shiftToFollower(t Term, leaderID HostID) {
 	r.currentLeader = leaderID
 	r.nextIndex = nil
 	r.matchIndex = nil
-	r.indexIncrements = nil
+	//r.indexIncrements = nil
 	r.VotedFor = -1
 }
 
@@ -64,12 +64,12 @@ func (r *RaftNode) shiftToLeader() {
 	// Reset leader volatile state
 	r.nextIndex = make(map[HostID]LogIndex)
 	r.matchIndex = make(map[HostID]LogIndex)
-	r.indexIncrements = make(map[HostID]int)
+	//r.indexIncrements = make(map[HostID]int)
 
 	for peerID := range r.hosts {
 		r.nextIndex[peerID] = r.getLastLogIndex() + 1
 		r.matchIndex[peerID] = LogIndex(0)
-		r.indexIncrements[peerID] = 0
+		//r.indexIncrements[peerID] = 0
 	}
 }
 
@@ -398,7 +398,7 @@ func (r *RaftNode) protocol() {
 						r.nextIndex[m.hostID] = next
 					} else {
 						prev := r.nextIndex[m.hostID]
-						next := prev + LogIndex(r.indexIncrements[m.hostID])
+						next := prev + LogIndex(m.aeLength)
 						log.Printf("Increment nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
 						r.matchIndex[m.hostID] = prev
 						r.nextIndex[m.hostID] = next

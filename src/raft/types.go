@@ -196,10 +196,11 @@ type incomingMsg struct {
 	msgType  msgType     // What type of response did we receive
 	hostID   HostID      // who responded
 	response RPCResponse // Contents of their response
+	aeLength int         // For appendEntriesRPC, we also note how many entries were sent
 }
 
 func (m *incomingMsg) String() string {
-	return fmt.Sprintf("incoming msg. msgType=%d, hostID=%d, response={%s}", m.msgType, m.hostID, m.response.String())
+	return fmt.Sprintf("incoming msg. msgType=%d, hostID=%d, response={%s}, aeLength=%d", m.msgType, m.hostID, m.response.String(), m.aeLength)
 }
 
 const (
@@ -226,9 +227,9 @@ type RaftNode struct {
 	// notice that a Term can have 0 leaders, so this should not be included inside Term type
 
 	// Volatile State (leader only, reset after each election)
-	nextIndex       map[HostID]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
-	matchIndex      map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
-	indexIncrements map[HostID]int      // length of the entries list we have sent to each peer
+	nextIndex  map[HostID]LogIndex // index of next log entry to send to each server. Starts at leader's lastApplied + 1
+	matchIndex map[HostID]LogIndex // index of highest entry known to be replicated on each server. Starts at 0
+	//indexIncrements map[HostID]int      // length of the entries list we have sent to each peer
 	// TODO - notice that indexIncrements approach is flawed because we may receive the successful response to a previous heartbeat when the indexIncrement has already been set to a positive number. This would mean we bump that follower's nextIndex value an extra time, and get an out-of-bounds panic.
 
 	// Convenience variables
@@ -313,6 +314,7 @@ func NewRaftNode(id HostID, recvPort int, hosts HostMap, clients ClientMap, quit
 
 		nextIndex:  make(map[HostID]LogIndex),
 		matchIndex: make(map[HostID]LogIndex),
+		//indexIncrements: make(map[HostID]int),
 
 		incomingChan:       make(chan incomingMsg),
 		hosts:              hosts,

@@ -61,10 +61,10 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 
 			// Send the entries and get response
 			// r.Lock()
-			if r.verbose {
-				log.Printf("set indexIncrements for host %d to %d. (previously %d)", hostID, len(entries), r.indexIncrements[hostID])
-			}
-			r.indexIncrements[hostID] = len(entries)
+			//if r.verbose {
+			//	log.Printf("set indexIncrements for host %d to %d. (previously %d)", hostID, len(entries), r.indexIncrements[hostID])
+			//}
+			//r.indexIncrements[hostID] = len(entries)
 			// r.Unlock()
 			go r.appendEntriesRPC(hostID, entries)
 		}
@@ -104,7 +104,7 @@ func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	if r.verbose {
 		log.Printf("appendEntriesRPC result. host: %d, success: %t", hostID, response.Success)
 	}
-	r.incomingChan <- incomingMsg{msgType: appendEntries, hostID: hostID, response: response}
+	r.incomingChan <- incomingMsg{msgType: appendEntries, hostID: hostID, response: response, aeLength: len(entries)}
 }
 
 // RequestVoteStruct holds the parameters used during the Vote() RPC
