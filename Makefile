@@ -1,6 +1,8 @@
 all: dirs
 	RAFT_DURATION=20 RAFT_VERBOSE=false docker-compose up --build --remove-orphans
 
+# Manual "integration tests"
+
 test_stop1: dirs
 	RAFT_DURATION=60 RAFT_VERBOSE=true docker-compose up --build --remove-orphans &
 	sleep 20
@@ -30,6 +32,7 @@ test_disconnect_reconnect: dirs
 	sleep 20
 	docker network connect raft-network r0
 
+# Utils
 
 dirs:
 	mkdir -p persistence
