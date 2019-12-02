@@ -242,7 +242,7 @@ type RaftNode struct {
 	heartbeatTicker    time.Ticker      // Leader-only ticker for sending heartbeats during idle periods
 	clientReplyTimeout time.Duration    // during client data storage interaction, time before giving up and replying failure
 	votes              electionResults  // temp storage for election results
-	quitChan           chan bool        // for cleaning up spawned goroutines
+	quitChan           chan bool        // for cleaning up spawned goroutines. Exported for testing, but ignored for JSON marshalling
 	verbose            bool
 }
 

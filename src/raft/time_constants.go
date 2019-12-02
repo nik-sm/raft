@@ -11,8 +11,8 @@ import (
 
 const electionTimeoutMinimum = 3
 const electionTimeoutMaximum = 6
+const heartbeatTimeout = 1
 const timeoutUnits = time.Second
-const heartbeatTimeout = electionTimeoutMinimum / 2
 
 func selectElectionTimeout(id HostID) time.Duration {
 	return time.Duration(rand.Intn(electionTimeoutMaximum-electionTimeoutMinimum+1) + electionTimeoutMinimum)

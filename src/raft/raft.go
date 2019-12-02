@@ -16,10 +16,10 @@ var verbose bool
 
 // returns true when an agent has a majority of votes for the proposed view
 func (r *RaftNode) wonElection() bool {
-	return haveMajority(r.votes, "ELECTION")
+	return haveMajority(r.votes, "ELECTION", r.verbose)
 }
 
-func haveMajority(votes map[HostID]bool, label string) bool {
+func haveMajority(votes map[HostID]bool, label string, verbose bool) bool {
 	var sb strings.Builder
 	nVoters := len(votes)
 	nReq := int(math.Floor(float64(nVoters)/2)) + 1
@@ -32,7 +32,9 @@ func haveMajority(votes map[HostID]bool, label string) bool {
 		sb.WriteString(fmt.Sprintf("|host %d, votedYes %t|", hostID, votedYes))
 	}
 	sb.WriteString("]")
-	log.Printf("Checking %s majority. nVoters: %d, nReq: %d, nFound: %d, Votes: %s", label, nVoters, nReq, nFound, sb.String())
+	if verbose {
+		log.Printf("Checking %s majority. nVoters: %d, nReq: %d, nFound: %d, Votes: %s", label, nVoters, nReq, nFound, sb.String())
+	}
 	return nFound >= nReq
 }
 
@@ -155,7 +157,9 @@ func (r *RaftNode) updateCommitIndex() {
 	//   set commitIndex = N
 	for n := r.commitIndex + 1; n <= r.getLastLogIndex(); n++ {
 		if r.Log[n].Term != r.CurrentTerm {
-			log.Printf("commitIndex %d ineligible because of log entry %s", n, r.Log[n].String())
+			if r.verbose {
+				log.Printf("commitIndex %d ineligible because of log entry %s", n, r.Log[n].String())
+			}
 			continue
 		}
 		peersAtThisLevel := make(map[HostID]bool)
@@ -166,7 +170,7 @@ func (r *RaftNode) updateCommitIndex() {
 				peersAtThisLevel[hostID] = r.matchIndex[hostID] >= n
 			}
 		}
-		if haveMajority(peersAtThisLevel, "COMMIT IDX") {
+		if haveMajority(peersAtThisLevel, "COMMIT IDX", r.verbose) {
 			r.commitIndex = n
 		}
 	}
@@ -197,7 +201,9 @@ func (r *RaftNode) AppendEntries(ae AppendEntriesStruct, response *RPCResponse) 
 	response.Term = r.CurrentTerm
 
 	if ae.LeaderID == r.currentLeader {
-		log.Println("AppendEntries from leader - reset tickers")
+		if r.verbose {
+			log.Println("AppendEntries from leader - reset tickers")
+		}
 		r.resetTickers()
 	}
 
@@ -359,6 +365,10 @@ func min(x LogIndex, y LogIndex) LogIndex {
 	return y
 }
 
+func (r *RaftNode) QuitChan() chan bool {
+	return r.quitChan
+}
+
 // Start is the entrypoint for a raft node (constructed here or in a test) to begin the protocol
 func (r *RaftNode) Start() {
 	go r.recvDaemon()
@@ -386,7 +396,9 @@ func (r *RaftNode) protocol() {
 
 			switch m.msgType {
 			case vote:
-				log.Printf("processing vote reply, hostID=%d: response=%s", m.hostID, m.response.String())
+				if r.verbose {
+					log.Printf("processing vote reply, hostID=%d: response=%s", m.hostID, m.response.String())
+				}
 				r.Lock()
 				if r.state == candidate {
 					r.votes[m.hostID] = m.response.Success
@@ -404,12 +416,16 @@ func (r *RaftNode) protocol() {
 
 						prev := r.nextIndex[m.hostID]
 						next := max(0, r.nextIndex[m.hostID]-1)
-						log.Printf("Decrement nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
+						if r.verbose {
+							log.Printf("Decrement nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
+						}
 						r.nextIndex[m.hostID] = next
 					} else {
 						prev := r.nextIndex[m.hostID]
 						next := prev + LogIndex(m.aeLength)
-						log.Printf("Increment nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
+						if r.verbose {
+							log.Printf("Increment nextIndex for hostID %d from %d to %d", m.hostID, prev, next)
+						}
 						r.matchIndex[m.hostID] = prev
 						r.nextIndex[m.hostID] = next
 					}
@@ -505,5 +521,4 @@ func Raft() {
 
 	log.Printf("RaftNode: %s", r.String())
 	r.Start()
-
 }

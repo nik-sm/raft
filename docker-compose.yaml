@@ -63,7 +63,7 @@ services:
     networks:
       - raft-network
     entrypoint: "client"
-    command: "-hostfile=hostfile.json -data=datafile.0.txt -v=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
+    command: "-hostfile=hostfile.json -data=datafile.0.txt -verbose=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
       
   raft-client-1:
     image: raft-image
@@ -76,7 +76,7 @@ services:
     networks:
       - raft-network
     entrypoint: "client"
-    command: "-hostfile=hostfile.json -data=datafile.1.txt -v=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
+    command: "-hostfile=hostfile.json -data=datafile.1.txt -verbose=${RAFT_VERBOSE} -duration=${RAFT_DURATION}"
 
 
 networks:

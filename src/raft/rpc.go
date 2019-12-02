@@ -51,10 +51,8 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 
 			// Check their "nextIndex" against our last log index
 			theirNextIdx := r.nextIndex[hostID]
-			log.Printf("theirNextIdx: %d", theirNextIdx)
 			if leaderLastLogIdx >= theirNextIdx {
 				for i := theirNextIdx; i <= leaderLastLogIdx; i++ {
-					log.Printf("appending: %s", r.Log[i].String())
 					entries = append(entries, r.Log[i])
 				}
 			}
@@ -73,12 +71,8 @@ func (r *RaftNode) heartbeatAppendEntriesRPC() {
 
 func (r *RaftNode) appendEntriesRPC(hostID HostID, entries []LogEntry) {
 	p := r.hosts[hostID]
-	log.Println("appendEntriesRPC")
-	log.Printf("hostID: %d", hostID)
 	prevLogIdx := max(0, r.nextIndex[hostID]-1)
-	log.Printf("prevLogIdx: %d", prevLogIdx)
 	prevLogTerm := r.Log[prevLogIdx].Term
-	log.Printf("prevLogTerm: %d", prevLogTerm)
 
 	args := AppendEntriesStruct{
 		Term:         r.CurrentTerm,
@@ -180,7 +174,8 @@ type ClientDataStruct struct {
 // TODO - confirm that we need a pointer receiver here, so that rpc can
 // invoke methods on the same RaftNode object we use elsewhere?
 func (r *RaftNode) recvDaemon() {
-	err := rpc.Register(r)
+	rpcServer := rpc.NewServer()
+	err := rpcServer.Register(r)
 	if err != nil {
 		panic(err)
 	}
@@ -200,7 +195,7 @@ func (r *RaftNode) recvDaemon() {
 			}
 			// TODO - Do we need to do extra work to kill this goroutine if we want to kill this raftnode?
 			// should this be used without goroutine?
-			go rpc.ServeConn(conn)
+			go rpcServer.ServeConn(conn)
 		}
 	}
 }
