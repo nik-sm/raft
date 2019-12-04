@@ -478,8 +478,21 @@ implemented:
   - `TODO.md`
 
 ## Project Challenges
-TODO
 
+The main challenges of this project fell into 2 categories.
+
+1. Designing for Testability
+- The most difficult part of this project was turning the description in the
+  Raft paper into a modular, testable design. This was certainly an area where
+  taking the lessons learned and re-writing the project would likely allow a
+  much cleaner design, especially for clarifying the placement of locks and the
+  structure of goroutines to be used.
+
+2. Learning Golang, net/rpc library
+- This project was also a way to learn Golang, and a first attempt to work with
+  an RPC library, so a lot of time went into troubleshooting language usage.
+  This is also an area where, in hindsight, setting up a more thorough test
+  suite would be helpful.
 
 # Appendix
 
